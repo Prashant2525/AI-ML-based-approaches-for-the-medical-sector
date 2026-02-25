@@ -48,19 +48,20 @@ This project focuses on developing a Visual Question Answering (VQA) system for 
     \item Performed comprehensive Exploratory Data Analysis (EDA) including question class distribution, complexity level analysis, text length distributions, and sample image visualizations.
     \item Built a complete data preprocessing pipeline with text cleaning, image validation, and stratified train/validation/test splitting (90/10 from training data, stratified by complexity).
     \item Implemented PyTorch \texttt{Dataset} and \texttt{DataLoader} classes with image augmentation (random flip, rotation, color jitter) for the training pipeline.
+    \item Ran baseline zero-shot VQA inference using pre-trained BLIP-2 (Salesforce/blip2-opt-2.7b) on 18 test samples across all three complexity levels. Results: 0\% exact-match accuracy, 27.0\% average word-level F1 score, with F1 degrading from 18.9\% (Level 1) to 35.1\% (Level 3). The model exhibited clear hallucination behavior, including fabricating wrong procedures (e.g., ``laparoscopic cholecystectomy'' for colonoscopy images) and wrong organ systems (e.g., ``urethral sphincter'' in GI endoscopy).
 \end{itemize}
 
 \section{Work Planned for This Month}
 \begin{itemize}[leftmargin=*]
-    \item Run baseline zero-shot VQA inference using pre-trained BLIP-2 model to establish performance benchmarks.
+    \item Analyze baseline hallucination patterns to inform the design of the uncertainty-aware mechanism.
     \item Finalize selection of the multimodal architecture for fine-tuning.
     \item Begin implementing the uncertainty-aware training objective.
 \end{itemize}
 
 \section{Progress Status}
 \begin{itemize}[leftmargin=*]
-    \item Overall completion: $\sim$25\% (Literature review, dataset preparation, EDA, and preprocessing pipeline completed).
-    \item Timeline on track with dataset exploration and initial pipeline development finished ahead of schedule.
+    \item Overall completion: $\sim$30\% (Literature review, dataset preparation, EDA, preprocessing pipeline, and baseline inference completed).
+    \item Timeline ahead of schedule with baseline results already establishing the performance benchmark for improvement.
 \end{itemize}
 
 \section{Challenges/Issues Faced}
@@ -84,17 +85,17 @@ This project focuses on developing a Visual Question Answering (VQA) system for 
 
 \section{Plan for Next Month}
 \begin{itemize}[leftmargin=*]
-    \item Run baseline zero-shot inference with BLIP-2 and evaluate performance across complexity levels.
-    \item Fine-tune the selected multimodal model on Kvasir-VQA-x1 training data.
+    \item Fine-tune the selected multimodal model on Kvasir-VQA-x1 training data using LoRA/QLoRA.
     \item Implement the confidence-based abstention mechanism using predictive entropy thresholding.
     \item Begin evaluation using Risk-Coverage curves and Expected Calibration Error (ECE).
-    \item Expected Deliverables: Baseline results, fine-tuned model checkpoint, initial uncertainty analysis.
+    \item Compare fine-tuned model performance against the zero-shot baseline (0\% exact match, 27\% F1).
+    \item Expected Deliverables: Fine-tuned model checkpoint, initial uncertainty analysis, comparative evaluation.
 \end{itemize}
 
 \section{Student Individual Contribution}
 
 \noindent\textbf{Sunit Soni (AP22110011494):}
-Led the literature review on uncertainty estimation and hallucination mitigation techniques in vision-language models. Surveyed methods including Monte Carlo Dropout, evidential deep learning, and selective prediction frameworks. Contributed to defining the research question and identifying the evaluation metrics (Risk-Coverage Curve, Expected Calibration Error) for the project.
+Led the literature review on uncertainty estimation and hallucination mitigation techniques in vision-language models. Surveyed methods including Monte Carlo Dropout, evidential deep learning, and selective prediction frameworks. Contributed to defining the research question and identifying the evaluation metrics (Risk-Coverage Curve, Expected Calibration Error) for the project. Executed baseline zero-shot inference using BLIP-2, obtaining 0\% exact-match and 27\% word F1 across complexity levels, with documented hallucination cases confirming the need for uncertainty-aware approaches.
 
 \vspace{0.4cm}
 
@@ -104,7 +105,7 @@ Conducted an in-depth exploration of the Kvasir-VQA-x1 dataset, including downlo
 \vspace{0.4cm}
 
 \noindent\textbf{Jayash Shrestha (AP22110011481):}
-Reviewed and compared candidate multimodal architectures (BiomedCLIP, LLaVA-Med, ViLT, CLIP+adapter) for medical VQA tasks based on published benchmarks and computational requirements. Implemented the PyTorch Dataset and DataLoader classes with image augmentation transforms and stratified train/validation splitting. Developed the baseline inference script using BLIP-2 for zero-shot VQA evaluation.
+Reviewed and compared candidate multimodal architectures (BiomedCLIP, LLaVA-Med, ViLT, CLIP+adapter) for medical VQA tasks based on published benchmarks and computational requirements. Implemented the PyTorch Dataset and DataLoader classes with image augmentation transforms and stratified train/validation splitting. Developed and executed the baseline inference pipeline using BLIP-2 for zero-shot VQA evaluation, obtaining 0\% exact-match and 27\% word F1, confirming the need for domain-specific fine-tuning.
 
 \section*{9. Supervisor's Observation}
 
