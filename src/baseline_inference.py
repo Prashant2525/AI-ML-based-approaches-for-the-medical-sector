@@ -72,23 +72,32 @@ def run_inference(model, processor, image, question, config):
             num_beams=3,
         )
 
-    prediction = processor.decode(outputs[0], skip_special_tokens=True).strip()
+    # Only decode the NEW tokens (skip the echoed prompt)
+    generated_ids = outputs[0][inputs["input_ids"].shape[-1]:]
+    prediction = processor.decode(generated_ids, skip_special_tokens=True).strip()
 
     return {"prediction": prediction}
 
 
-def select_diverse_samples(df, n_samples, seed=42):
-    """Select diverse samples across complexity levels and question classes."""
-    samples = []
+def compute_word_f1(prediction, ground_truth):
+    """
+    Compute word-level F1 score between prediction and ground truth.
+    This is the standard VQA evaluation metric that handles paraphrasing.
+    """
+    pred_tokens = set(prediction.strip().lower().split())
+    gt_tokens = set(ground_truth.strip().lower().split())
 
-    for complexity in sorted(df["complexity"].unique()):
-        subset = df[df["complexity"] == complexity]
-        n_per_complexity = max(1, n_samples // 3)
-        sample = subset.sample(n=min(n_per_complexity, len(subset)), random_state=seed)
-        samples.append(sample)
+    if not pred_tokens or not gt_tokens:
+        return 0.0
 
-    result = pd.concat(samples).head(n_samples)
-    return result
+    common = pred_tokens & gt_tokens
+    if not common:
+        return 0.0
+
+    precision = len(common) / len(pred_tokens)
+    recall = len(common) / len(gt_tokens)
+    f1 = 2 * precision * recall / (precision + recall)
+    return f1
 
 
 def main():
@@ -114,7 +123,8 @@ def main():
 
     # Run inference
     results = []
-    correct = 0
+    exact_matches = 0
+    total_f1 = 0.0
     total = 0
 
     print(f"\n[INFO] Running inference on {len(sample_df)} samples...\n")
@@ -134,10 +144,13 @@ def main():
         output = run_inference(model, processor, image, question, config)
         prediction = output["prediction"]
 
-        # Simple exact match check
-        is_correct = prediction.strip().lower() == ground_truth.strip().lower()
-        if is_correct:
-            correct += 1
+        # Evaluation metrics
+        is_exact = prediction.strip().lower() == ground_truth.strip().lower()
+        f1_score = compute_word_f1(prediction, ground_truth)
+
+        if is_exact:
+            exact_matches += 1
+        total_f1 += f1_score
         total += 1
 
         result = {
@@ -147,14 +160,20 @@ def main():
             "question": question,
             "ground_truth": ground_truth,
             "prediction": prediction,
-            "exact_match": is_correct,
+            "exact_match": is_exact,
+            "word_f1": round(f1_score, 3),
         }
         results.append(result)
 
-        # Print result
-        status = "✓" if is_correct else "✗"
-        print(f"[{idx + 1}/{len(sample_df)}] {status}")
-        print(f"  Image:      {row['img_id']}")
+        # Print result with F1 score
+        if is_exact:
+            status = "✓ EXACT"
+        elif f1_score >= 0.5:
+            status = "~ PARTIAL"
+        else:
+            status = "✗ WRONG"
+
+        print(f"[{idx + 1}/{len(sample_df)}] {status} (F1: {f1_score:.2f})")
         print(f"  Complexity: {row['complexity']}")
         print(f"  Question:   {question[:100]}")
         print(f"  GT Answer:  {ground_truth[:80]}")
@@ -162,17 +181,31 @@ def main():
         print("-" * 80)
 
     # Summary
-    accuracy = (correct / total * 100) if total > 0 else 0
+    exact_acc = (exact_matches / total * 100) if total > 0 else 0
+    avg_f1 = (total_f1 / total * 100) if total > 0 else 0
+    partial_matches = sum(1 for r in results if r["word_f1"] >= 0.5)
+
     print(f"\n{'=' * 80}")
     print(f"BASELINE INFERENCE SUMMARY")
     print(f"{'=' * 80}")
-    print(f"  Total samples:   {total}")
-    print(f"  Exact matches:   {correct}")
-    print(f"  Accuracy:        {accuracy:.1f}%")
+    print(f"  Model:                {config['model']['name']}")
+    print(f"  Total samples:        {total}")
+    print(f"  Exact matches:        {exact_matches}/{total} ({exact_acc:.1f}%)")
+    print(f"  Partial matches (F1≥0.5): {partial_matches}/{total}")
+    print(f"  Average Word F1:      {avg_f1:.1f}%")
+
+    # Per-complexity breakdown
+    results_df = pd.DataFrame(results)
+    print(f"\n  Per-Complexity:")
+    for c in sorted(results_df["complexity"].unique()):
+        c_df = results_df[results_df["complexity"] == c]
+        c_exact = c_df["exact_match"].sum()
+        c_f1 = c_df["word_f1"].mean() * 100
+        print(f"    Level {c}: Exact {c_exact}/{len(c_df)}, Avg F1: {c_f1:.1f}%")
+
     print(f"{'=' * 80}")
 
     # Save results
-    results_df = pd.DataFrame(results)
     results_path = output_dir / "baseline_predictions.csv"
     results_df.to_csv(results_path, index=False)
     print(f"\n[INFO] Predictions saved to {results_path}")
@@ -181,19 +214,20 @@ def main():
     summary = {
         "model": config["model"]["name"],
         "num_samples": total,
-        "exact_match_accuracy": accuracy,
-        "correct": correct,
+        "exact_match_accuracy": exact_acc,
+        "average_word_f1": avg_f1,
+        "exact_matches": int(exact_matches),
+        "partial_matches_f1_gte_50": int(partial_matches),
         "total": total,
         "per_complexity": {},
     }
     for c in sorted(results_df["complexity"].unique()):
         c_df = results_df[results_df["complexity"] == c]
-        c_correct = c_df["exact_match"].sum()
-        c_total = len(c_df)
         summary["per_complexity"][f"level_{c}"] = {
-            "correct": int(c_correct),
-            "total": int(c_total),
-            "accuracy": round(c_correct / c_total * 100, 1) if c_total > 0 else 0,
+            "exact_matches": int(c_df["exact_match"].sum()),
+            "total": int(len(c_df)),
+            "exact_accuracy": round(c_df["exact_match"].mean() * 100, 1),
+            "avg_word_f1": round(c_df["word_f1"].mean() * 100, 1),
         }
 
     summary_path = output_dir / "baseline_summary.json"
@@ -204,3 +238,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
