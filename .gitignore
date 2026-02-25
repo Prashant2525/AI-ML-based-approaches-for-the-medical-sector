@@ -1,0 +1,41 @@
+# Data
+data/
+*.jpg
+*.png
+*.jpeg
+
+# Results (keep structure, ignore outputs)
+results/eda/*.png
+results/predictions/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Model checkpoints
+checkpoints/
+*.pt
+*.pth
+*.bin
+
+# HuggingFace cache
+.cache/
