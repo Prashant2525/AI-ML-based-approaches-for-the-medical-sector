@@ -11,7 +11,7 @@ Usage:
     python src/preprocessing.py
 """
 
-import yam
+import yaml
 import pandas as pd
 import numpy as np
 from pathlib import Path
