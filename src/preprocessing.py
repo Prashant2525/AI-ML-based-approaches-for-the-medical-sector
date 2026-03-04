@@ -139,7 +139,21 @@ def create_stratified_split(train_df, val_ratio=0.1, seed=42):
     return train_split, val_split
 
 
+def compute_preprocessing_stats(train_df, val_df, test_df):
+    """Compute and print preprocessing summary statistics."""
+    print("\n" + "=" * 60)
+    print("PREPROCESSING SUMMARY")
+    print("=" * 60)
 
+    for name, df in [("Train", train_df), ("Validation", val_df), ("Test", test_df)]:
+        print(f"\n  {name} Split:")
+        print(f"    Samples:          {len(df):,}")
+        print(f"    Unique images:    {df['img_id'].nunique():,}")
+        print(f"    Avg Q length:     {df['question_length'].mean():.1f} words")
+        print(f"    Avg A length:     {df['answer_length'].mean():.1f} words")
+        print(f"    Complexity dist:  {dict(df['complexity'].value_counts().sort_index())}")
+
+    print("=" * 60)
 
 
 def main():
