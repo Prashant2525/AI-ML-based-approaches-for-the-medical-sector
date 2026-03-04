@@ -110,7 +110,33 @@ def preprocess_dataframe(df):
     return df
 
 
+def create_stratified_split(train_df, val_ratio=0.1, seed=42):
+    """
+    Create stratified train/validation split.
 
+    Stratifies by complexity to maintain distribution.
+
+    Returns:
+        tuple: (train_split, val_split)
+    """
+    train_split, val_split = train_test_split(
+        train_df,
+        test_size=val_ratio,
+        random_state=seed,
+        stratify=train_df["complexity"],
+    )
+
+    # Verify distribution
+    print("\n[INFO] Split statistics:")
+    print(f"  Train: {len(train_split):,} samples")
+    print(f"  Val:   {len(val_split):,} samples")
+    print("\n  Complexity distribution (Train -> Val):")
+    for c in sorted(train_df["complexity"].unique()):
+        train_pct = (train_split["complexity"] == c).mean() * 100
+        val_pct = (val_split["complexity"] == c).mean() * 100
+        print(f"    Level {c}: {train_pct:.1f}% -> {val_pct:.1f}%")
+
+    return train_split, val_split
 
 
 def compute_preprocessing_stats(train_df, val_df, test_df):
