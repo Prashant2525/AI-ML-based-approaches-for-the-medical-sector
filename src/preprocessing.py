@@ -156,7 +156,46 @@ def compute_preprocessing_stats(train_df, val_df, test_df):
     print("=" * 60)
 
 
+def main():
+    config = load_config()
+    data_dir = Path(config["paths"]["data_dir"])
+    image_dir = Path(config["paths"]["image_dir"])
+    val_ratio = config["dataset"]["val_split_ratio"]
+    seed = config["dataset"]["random_seed"]
 
+    # Load raw data
+    print("[INFO] Loading raw data...")
+    train_df = pd.read_csv(data_dir / "kvasir_vqa_x1_train.csv")
+    test_df = pd.read_csv(data_dir / "kvasir_vqa_x1_test.csv")
+
+    # Preprocess text
+    print("\n[STEP 1] Cleaning text data...")
+    train_df = preprocess_dataframe(train_df)
+    test_df = preprocess_dataframe(test_df)
+
+    # Validate images
+    print("\n[STEP 2] Validating images...")
+    if image_dir.exists():
+        train_df, _ = validate_images(train_df, image_dir)
+        test_df, _ = validate_images(test_df, image_dir)
+    else:
+        print("[SKIP] Image directory not found. Run download_dataset.py first.")
+
+    # Stratified split
+    print("\n[STEP 3] Creating stratified train/val split...")
+    train_split, val_split = create_stratified_split(train_df, val_ratio, seed)
+
+    # Save preprocessed splits
+    print("\n[STEP 4] Saving preprocessed splits...")
+    train_split.to_csv(data_dir / "preprocessed_train.csv", index=False)
+    val_split.to_csv(data_dir / "preprocessed_val.csv", index=False)
+    test_df.to_csv(data_dir / "preprocessed_test.csv", index=False)
+    print(f"[INFO] Saved preprocessed CSVs to {data_dir}/")
+
+    # Summary
+    compute_preprocessing_stats(train_split, val_split, test_df)
+
+    print("\n[DONE] Preprocessing complete!")
 
 
 if __name__ == "__main__":
