@@ -29,7 +29,19 @@ def load_config(config_path="configs/config.yaml"):
         return yaml.safe_load(f)
 
 
+def clean_text(text):
+    """
+    Clean and normalize text (questions/answers).
 
+    - Strip whitespace
+    - Normalize unicode
+    - Remove extra spaces
+    """
+    if not isinstance(text, str):
+        return str(text).strip()
+    text = text.strip()
+    text = " ".join(text.split())  # Normalize whitespace
+    return text
 
 
 def validate_images(df, image_dir):
