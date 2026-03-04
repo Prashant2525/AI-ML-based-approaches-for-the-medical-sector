@@ -44,7 +44,40 @@ def clean_text(text):
     return text
 
 
+def validate_images(df, image_dir):
+    """
+    Validate that all referenced images exist and are readable.
 
+    Returns:
+        tuple: (valid_df, invalid_ids)
+    """
+    image_dir = Path(image_dir)
+    invalid_ids = []
+    valid_ids = []
+
+    unique_ids = df["img_id"].unique()
+    print(f"[INFO] Validating {len(unique_ids)} unique images...")
+
+    for img_id in tqdm(unique_ids, desc="Validating images"):
+        img_path = image_dir / f"{img_id}.jpg"
+        if img_path.exists():
+            try:
+                img = Image.open(img_path)
+                img.verify()
+                valid_ids.append(img_id)
+            except Exception:
+                invalid_ids.append(img_id)
+        else:
+            invalid_ids.append(img_id)
+
+    if invalid_ids:
+        print(f"[WARNING] {len(invalid_ids)} images are missing or corrupted.")
+        valid_df = df[df["img_id"].isin(valid_ids)].copy()
+    else:
+        valid_df = df.copy()
+
+    print(f"[INFO] {len(valid_ids)} valid images, {len(invalid_ids)} invalid.")
+    return valid_df, invalid_ids
 
 
 def preprocess_dataframe(df):
