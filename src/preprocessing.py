@@ -23,10 +23,7 @@ from sklearn.model_selection import train_test_split
 from torchvision import transforms
 
 
-def load_config(config_path="configs/config.yaml"):
-    """Load project configuration."""
-    with open(config_path, "r") as f:
-        return yaml.safe_load(f)
+
 
 
 def clean_text(text):
