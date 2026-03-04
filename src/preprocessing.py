@@ -198,5 +198,4 @@ def main():
     print("\n[DONE] Preprocessing complete!")
 
 
-if __name__ == "__main__":
-    main()
+
