@@ -12,15 +12,7 @@ Usage:
 """
 
 import yaml
-import pandas as pd
-import numpy as np
-from pathlib import Path
-from PIL import Image
-from tqdm import tqdm
-from collections import Counter
 
-from sklearn.model_selection import train_test_split
-from torchvision import transforms
 
 
 def load_config(config_path="configs/config.yaml"):
