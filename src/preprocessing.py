@@ -80,34 +80,7 @@ def validate_images(df, image_dir):
     return valid_df, invalid_ids
 
 
-def preprocess_dataframe(df):
-    """
-    Clean and preprocess the QA DataFrame.
 
-    Steps:
-    - Clean question and answer text
-    - Drop rows with empty questions or answers
-    - Add answer_length and question_length columns
-    """
-    df = df.copy()
-
-    # Clean text
-    df["question"] = df["question"].apply(clean_text)
-    df["answer"] = df["answer"].apply(clean_text)
-
-    # Drop empty
-    before = len(df)
-    df = df[df["question"].str.len() > 0]
-    df = df[df["answer"].str.len() > 0]
-    after = len(df)
-    if before != after:
-        print(f"[INFO] Dropped {before - after} rows with empty questions/answers.")
-
-    # Add length columns
-    df["answer_length"] = df["answer"].str.split().str.len()
-    df["question_length"] = df["question"].str.split().str.len()
-
-    return df
 
 
 def create_stratified_split(train_df, val_ratio=0.1, seed=42):
