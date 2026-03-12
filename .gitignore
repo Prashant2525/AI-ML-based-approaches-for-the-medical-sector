@@ -39,3 +39,6 @@ checkpoints/
 
 # HuggingFace cache
 .cache/
+
+# zip files
+*.zip

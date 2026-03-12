@@ -41,3 +41,26 @@ model:
 eda:
   sample_grid_size: 9          # 3x3 grid of sample images
   top_n_question_classes: 15   # Top N classes to show in bar chart
+
+# --- Fine-Tuning ---
+training:
+  subset_size: 10000           # Stratified training subset (for Colab feasibility)
+  epochs: 3
+  batch_size: 4
+  gradient_accumulation_steps: 8  # Effective batch size = 32
+  learning_rate: 2.0e-4
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  max_new_tokens: 64
+  eval_samples: 50             # Samples for validation during training
+
+# --- LoRA ---
+lora:
+  r: 16                        # Rank of decomposition
+  alpha: 32                    # Scaling factor
+  dropout: 0.1
+  target_modules:              # OPT attention layers to adapt
+    - "q_proj"
+    - "v_proj"
+  bias: "none"
+  task_type: "CAUSAL_LM"
