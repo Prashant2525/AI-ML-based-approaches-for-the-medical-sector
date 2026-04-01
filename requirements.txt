@@ -4,6 +4,8 @@ torchvision>=0.15.0
 transformers>=4.36.0
 datasets>=2.16.0
 accelerate>=0.25.0
+peft>=0.7.0
+bitsandbytes>=0.41.0
 
 # Data & Visualization
 pandas>=2.0.0
@@ -12,6 +14,10 @@ matplotlib>=3.7.0
 seaborn>=0.12.0
 Pillow>=10.0.0
 wordcloud>=1.9.0
+
+# Evaluation Metrics
+nltk>=3.8.0
+bert-score>=0.3.13
 
 # Utilities
 pyyaml>=6.0
