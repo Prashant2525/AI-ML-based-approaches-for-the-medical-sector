@@ -44,10 +44,10 @@ eda:
 
 # --- Fine-Tuning ---
 training:
-  subset_size: 10000           # Stratified training subset (for Colab feasibility)
+  subset_size: 2000            # Stratified training subset (reduced for GPU constraints)
   epochs: 3
   batch_size: 4
-  gradient_accumulation_steps: 8  # Effective batch size = 32
+  gradient_accumulation_steps: 4  # Effective batch size = 16
   learning_rate: 2.0e-4
   weight_decay: 0.01
   warmup_ratio: 0.1
