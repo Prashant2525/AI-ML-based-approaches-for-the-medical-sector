@@ -1,0 +1,169 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage{geometry}
+\geometry{margin=1in}
+\usepackage{titlesec}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{booktabs}
+
+% Section formatting
+\titleformat{\section}{\bfseries\large}{\thesection}{1em}{}
+\titleformat{\subsection}{\bfseries}{\thesubsection}{1em}{}
+
+\begin{document}
+
+% Title Page
+\begin{center}
+    \Large \textbf{Capstone Project Monthly Progress Report}\\[0.5cm]
+    \normalsize
+    
+    \textbf{Month:} March 2026 \\[0.5cm]
+    \textbf{Project Title:} Uncertainty-Aware Visual Question Answering on Kvasir-VQA-x1 \\[0.5cm]
+    \textbf{Project ID:} CAPSTONE\_2022\_22172\_4 \\[0.5cm]
+    \textbf{Student Name:} Sunit Soni \\
+    \textbf{Student Roll Number:} AP22110011494 \\
+
+    \textbf{Total Number of Students in Team:} 03 \\
+    \textbf{Details of Team Members:}\\
+       Prashant Dhimal (Roll No. AP22110011492)\\
+       Jayash Shrestha (Roll No. AP22110011481)\\[0.5cm]
+    \textbf{Supervisor:} Dr. M Krishna Siva Prasad \\[0.5cm]
+    Department of Computer Science and Engineering\\
+    SRM University AP
+\end{center}
+
+\hrule
+\vspace{1cm}
+
+\section{Project Overview}
+This project focuses on developing a Visual Question Answering (VQA) system for gastrointestinal medical images using the Kvasir-VQA-x1 dataset. The primary objective is to design an uncertainty-aware multimodal model that can answer clinical visual questions while minimizing hallucinations through a confidence-based abstention mechanism. The core research question investigates how effective uncertainty-aware training objectives are in reducing hallucinations in medical VQA tasks. The project targets safe and responsible deployment of multimodal AI in clinical decision support.
+
+\section{Work Completed During Last 1 Month}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Comprehensive Evaluation Metrics:} Implemented a full suite of NLG evaluation metrics beyond word F1: BLEU-1/2/3/4, ROUGE-L, METEOR, BERTScore, word precision, and word recall. These metrics are standard in the medical VQA literature and enable direct comparison with published work.
+    
+    \item \textbf{Updated Baseline Evaluation:} Re-ran the zero-shot BLIP-2 baseline with all new metrics on 48 stratified test samples. Results: 0\% exact match, 23.4\% word F1, 19.5\% BLEU-1, 4.2\% BLEU-4, 20.8\% ROUGE-L, 21.8\% METEOR, and 25.9\% BERTScore F1. These numbers quantify the severity of hallucination in the untuned model.
+    
+    \item \textbf{LoRA Fine-Tuning Pipeline:} Built and executed an end-to-end fine-tuning pipeline for BLIP-2 using Low-Rank Adaptation (LoRA) with 8-bit quantization via \texttt{bitsandbytes}. LoRA was applied to the OPT language model's attention layers (\texttt{q\_proj}, \texttt{v\_proj}) with $r=16$, $\alpha=32$, and 0.1 dropout.
+    
+    \item \textbf{Bug Fix --- Causal LM Label Alignment:} Identified and fixed a critical training bug where the answer tokens were passed as a disconnected \texttt{labels} tensor. The corrected approach concatenates the prompt and answer as a single input sequence, with prompt tokens masked to $-100$ in labels so loss is computed only on answer tokens.
+    
+    \item \textbf{Fine-Tuning Results:} Trained on a stratified subset ($\sim$500 samples) for 3 epochs ($\sim$18 minutes on T4 GPU). Training loss decreased from 2.20 $\rightarrow$ 0.87 $\rightarrow$ 0.76. On 20 test samples: 5\% exact match (up from 0\%), 49.6\% word F1 (up from 23.4\%), and 50\% partial match rate (up from 5.6\%).
+    
+    \item \textbf{Uncertainty Estimation Module:} Implemented three complementary uncertainty estimation methods:
+    \begin{itemize}
+        \item \textbf{Predictive Entropy:} Computes token-level softmax entropy $H = -\sum p(t) \log p(t)$ at each generation step. High entropy indicates the model is spread across many candidate tokens.
+        \item \textbf{MC Dropout:} Enables dropout at inference and runs $N=5$ forward passes. Measures lexical variance across generated answers using pairwise word F1. Inconsistent answers signal uncertainty.
+        \item \textbf{Sequence Confidence:} Computes the normalized log-probability of the generated sequence. Low log-probability indicates less confident generation.
+    \end{itemize}
+    A combined uncertainty score weighting all three methods (0.4 entropy + 0.3 MC + 0.3 confidence) is used for abstention.
+    
+    \item \textbf{Abstention Mechanism:} Implemented threshold-based selective prediction --- if combined uncertainty exceeds threshold $\tau$, the model outputs ``I am not confident enough to answer this question'' instead of guessing. Threshold $\tau$ is tuned on the validation set to maximize selective accuracy while maintaining $\geq$80\% coverage (i.e., the model answers at least 80\% of questions).
+    
+    \item \textbf{Safety Evaluation Metrics:} Implemented four safety-specific metrics:
+    \begin{itemize}
+        \item \textbf{Risk-Coverage Curve:} Plots error rate vs.\ fraction of questions answered. Lower area under curve = better.
+        \item \textbf{AUROC:} Measures how well uncertainty separates correct from incorrect predictions.
+        \item \textbf{ECE (Expected Calibration Error):} Measures alignment between confidence and actual accuracy.
+        \item \textbf{Selective Accuracy:} Accuracy at various coverage levels (50\%, 60\%, 70\%, 80\%, 90\%, 100\%).
+    \end{itemize}
+    
+    \item \textbf{Google Colab Notebooks:} Created/updated three self-contained Colab notebooks:
+    \begin{itemize}
+        \item \texttt{baseline\_inference\_colab.ipynb} --- Updated with all evaluation metrics
+        \item \texttt{finetune\_blip2\_colab.ipynb} --- Complete LoRA fine-tuning pipeline
+        \item \texttt{uncertainty\_eval\_colab.ipynb} --- Uncertainty estimation + abstention + safety plots
+    \end{itemize}
+\end{itemize}
+
+\section{Work Planned for This Month}
+\begin{itemize}[leftmargin=*]
+    \item Scale fine-tuning to 2,000+ stratified training samples for improved performance.
+    \item Resolve remaining issues in the uncertainty evaluation notebook and run full evaluation.
+    \item Analyze safety metrics (Risk-Coverage curves, AUROC, ECE) on the scaled model.
+    \item Produce side-by-side comparison: baseline vs.\ fine-tuned vs.\ uncertainty-aware.
+    \item Write the final project report.
+\end{itemize}
+
+\section{Progress Status}
+\begin{itemize}[leftmargin=*]
+    \item Overall completion: $\sim$80\% (All core modules implemented: baseline, fine-tuning, uncertainty estimation, abstention, safety metrics).
+    \item Remaining: scaled training run, full uncertainty evaluation, and final documentation.
+    \item Timeline is on track --- core research contributions (uncertainty estimation + abstention) are fully implemented.
+\end{itemize}
+
+\section{Challenges/Issues Faced}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Causal LM label alignment:} The initial fine-tuning produced garbage outputs (repeating dashes). Root cause was incorrect label construction --- the answer was passed as a disconnected tensor instead of being concatenated with the prompt in the input sequence. Debugging and fixing this consumed significant effort.
+    \item \textbf{GPU resource constraints:} Limited to Google Colab T4 (16GB VRAM), requiring 8-bit quantization, small batch sizes (4), and reduced training subsets. Full dataset fine-tuning was not feasible within session time limits.
+    \item \textbf{Image availability:} Only $\sim$500 of the planned 2,000 training images were available in the initial run, limiting fine-tuning effectiveness.
+    \item \textbf{MC Dropout with quantized models:} Running stochastic forward passes on 8-bit quantized models required careful handling of dropout layer states to avoid interference with quantization.
+\end{itemize}
+
+\section{Learning Outcomes}
+\begin{itemize}[leftmargin=*]
+    \item Learned Low-Rank Adaptation (LoRA) for parameter-efficient fine-tuning of large vision-language models, including proper integration with 8-bit quantization.
+    \item Understood the critical importance of label alignment in causal language model fine-tuning --- prompt tokens must be masked to $-100$ so loss applies only to answer tokens.
+    \item Gained practical experience with NLG evaluation metrics (BLEU, ROUGE-L, METEOR, BERTScore) and their individual strengths for medical text evaluation.
+    \item Studied and implemented three uncertainty estimation techniques (predictive entropy, MC Dropout, sequence confidence) and their complementary strengths.
+    \item Learned about safety evaluation frameworks for medical AI: Risk-Coverage analysis, calibration, and selective prediction.
+    \item Gained experience designing threshold-based abstention mechanisms with coverage constraints.
+\end{itemize}
+
+\section{Plan for Next Month}
+\begin{itemize}[leftmargin=*]
+    \item Scale fine-tuning to the full 2,000-sample stratified training subset.
+    \item Complete the uncertainty evaluation pipeline and generate safety analysis plots.
+    \item Produce final comparison table: baseline vs.\ fine-tuned vs.\ uncertainty-aware across all metrics.
+    \item Write the final project report including methodology, experiments, results, and analysis.
+    \item Expected Deliverables: Scaled model checkpoint, uncertainty analysis results, safety plots, and final report.
+\end{itemize}
+
+\section{Student Individual Contribution}
+
+\noindent\textbf{Sunit Soni (AP22110011494):}
+Designed and implemented the uncertainty estimation module with three methods: predictive entropy, MC Dropout (5-pass lexical variance), and sequence-level confidence. Built the abstention mechanism with threshold tuning targeting 80\% coverage. Implemented all four safety evaluation metrics (Risk-Coverage, AUROC, ECE, selective accuracy). Diagnosed and fixed the causal LM label alignment bug in the fine-tuning pipeline. Created the uncertainty evaluation Colab notebook with 4-panel safety visualization.
+
+\vspace{0.4cm}
+
+\noindent\textbf{Jayash Shrestha (AP22110011481):}
+Implemented the comprehensive evaluation metrics suite: BLEU-1/2/3/4, ROUGE-L, METEOR, BERTScore, word precision, and word recall in the shared \texttt{train\_utils.py} module. Updated both the baseline and fine-tuning Colab notebooks with the new metrics. Re-ran the baseline evaluation with all metrics on 48 stratified test samples, establishing the updated benchmark numbers. Updated the project README with current results and project structure.
+
+\vspace{0.4cm}
+
+\noindent\textbf{Prashant Dhimal (AP22110011492):}
+Led the LoRA fine-tuning implementation for BLIP-2, including 8-bit quantization setup, gradient accumulation configuration, and cosine learning rate scheduling. Trained the initial model on $\sim$500 stratified samples, achieving 49.6\% word F1 (up from 23.4\% baseline). Built the fine-tuning Colab notebook with sanity checks for label alignment verification. Configured the LoRA hyperparameters ($r=16$, $\alpha=32$, target modules) based on literature recommendations.
+
+\section*{9. Supervisor's Observation}
+
+\noindent\textbf{Student Completed:} \rule{3cm}{0.4pt}\% 
+of the planned/assigned task during the last month
+
+\vspace{0.5cm}
+
+\noindent\textbf{Comments:}
+
+\vspace{1cm}
+\noindent\rule{\textwidth}{0.4pt}
+
+\vspace{0.5cm}
+
+\noindent\textbf{Number of times students meet with supervisor (Online or Offline):} \rule{1cm}{0.4pt} \\
+
+\noindent\textbf{Satisfied with the Student's Work:} 
+\hspace{0.5cm} Satisfied 
+\hspace{1cm} Not Satisfied
+
+\vspace{0.5cm}
+
+\vspace{1.5cm}
+
+\noindent\begin{tabular}{p{7cm} p{6cm}}
+\textbf{Supervisor Signature:} & \rule{5cm}{0.4pt} \\
+\\
+\textbf{Date:} 
+\end{tabular}
+
+\vspace{0.8cm}
+
+\end{document}
