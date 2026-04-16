@@ -1,0 +1,47 @@
+{
+  "model": "Salesforce/blip2-opt-2.7b",
+  "method": "zero-shot",
+  "num_eval_samples": 50,
+  "metrics": {
+    "exact_match": 0.0,
+    "word_f1": 28.91,
+    "word_precision": 25.82,
+    "word_recall": 38.02,
+    "bleu_1": 24.23,
+    "bleu_2": 12.72,
+    "bleu_3": 7.13,
+    "bleu_4": 4.67,
+    "rouge_l": 23.83,
+    "meteor": 27.47,
+    "bertscore_f1": 32.94
+  },
+  "per_complexity": {
+    "level_2": {
+      "em": 0.0,
+      "f1": 37.42,
+      "rec": 44.68,
+      "bl1": 31.76,
+      "bl4": 5.39,
+      "rl": 29.68,
+      "met": 33.52
+    },
+    "level_1": {
+      "em": 0.0,
+      "f1": 14.76,
+      "rec": 29.98,
+      "bl1": 10.51,
+      "bl4": 1.96,
+      "rl": 14.08,
+      "met": 18.39
+    },
+    "level_3": {
+      "em": 0.0,
+      "f1": 32.27,
+      "rec": 38.63,
+      "bl1": 28.0,
+      "bl4": 5.97,
+      "rl": 26.16,
+      "met": 29.19
+    }
+  }
+}

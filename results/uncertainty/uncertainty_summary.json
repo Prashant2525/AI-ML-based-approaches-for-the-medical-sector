@@ -1,0 +1,36 @@
+{
+  "model": "Salesforce/blip2-opt-2.7b",
+  "method": "LoRA + uncertainty abstention",
+  "mc_dropout_passes": 5,
+  "target_coverage": 0.8,
+  "eval_samples": 50,
+  "vqa_metrics": {
+    "exact_match": 8.0,
+    "word_f1": 55.45,
+    "bleu_1": 50.48,
+    "bleu_4": 25.88,
+    "rouge_l": 50.85,
+    "meteor": 50.87
+  },
+  "safety_metrics": {
+    "auroc": 0.6215,
+    "auc_risk": 0.3803,
+    "ece": 0.3118
+  },
+  "abstention": {
+    "threshold": 0.4227,
+    "coverage": 0.84,
+    "selective_f1": 61.04,
+    "overall_f1": 55.45,
+    "n_answered": 42,
+    "n_abstained": 8
+  },
+  "selective_accuracy": {
+    "50pct": 61.24,
+    "60pct": 61.36,
+    "70pct": 60.37,
+    "80pct": 60.51,
+    "90pct": 60.1,
+    "100pct": 55.45
+  }
+}
