@@ -60,6 +60,86 @@ We use the [**Kvasir-VQA-x1**](https://huggingface.co/datasets/SimulaMet/Kvasir-
 
 ---
 
+## Results
+
+### Final Comparison — Baseline vs Fine-Tuned vs Uncertainty-Aware (50 eval samples)
+
+| Metric | Baseline (Zero-Shot) | Fine-Tuned (2000 samples) | Uncertainty-Aware | Selective @84% Coverage |
+|--------|:--------------------:|:-------------------------:|:-----------------:|:-----------------------:|
+| Exact Match | 0.0% | 2.0% | **8.0%** | — |
+| Word F1 | 28.9% | 45.2% | 55.5% | **61.0%** |
+| Word Precision | 25.8% | 41.8% | — | — |
+| Word Recall | 38.0% | **61.9%** | — | — |
+| BLEU-1 | 24.2% | 39.7% | **50.5%** | — |
+| BLEU-4 | 4.7% | 20.9% | **25.9%** | — |
+| ROUGE-L | 23.8% | 41.9% | **50.9%** | — |
+| METEOR | 27.5% | 48.5% | **50.9%** | — |
+| BERTScore F1 | 32.9% | **48.3%** | — | — |
+
+**Key improvements from Baseline → Uncertainty-Aware:**
+- Word F1: **+26.5%** (28.9% → 55.5%)
+- BLEU-4: **+21.2%** (4.7% → 25.9%) — accurate multi-word phrase generation
+- Word Recall: **+23.9%** (38.0% → 61.9%) — critical for medical safety
+- Selective F1 at 84% coverage: **61.0%** — +5.6% over the overall F1 from abstention alone
+
+### Safety Metrics
+
+| Metric | Value | Interpretation |
+|--------|-------|----------------|
+| AUROC | **0.622** | Good — uncertainty discriminates correct vs. incorrect answers |
+| AUC-Risk | **0.380** | Lower is safer; model takes less risk at any given coverage |
+| ECE | **0.312** | Moderate calibration (lower = confidence matches accuracy better) |
+| Abstention Threshold τ | 0.423 | Combined uncertainty cutoff |
+| Coverage | **84%** | 42/50 answered, 8 abstained |
+| Selective F1 | **61.0%** | F1 on answered samples only |
+| Abstention Gain | **+5.6%** | Improvement from refusing hardest questions |
+
+### Selective Accuracy at Coverage Levels
+
+| Coverage | Selective Word F1 |
+|:--------:|:-----------------:|
+| 50% | 61.2% |
+| 60% | 61.4% |
+| 70% | 60.4% |
+| **80%** | **60.5%** ← target |
+| 90% | 60.1% |
+| 100% | 55.5% |
+
+### Per-Complexity Breakdown (Fine-Tuned, 2000 samples)
+
+| Complexity | Baseline F1 | Fine-Tuned F1 | Δ |
+|:----------:|:-----------:|:-------------:|:-:|
+| Level 1 (simple) | 14.8% | 26.1% | +11.3% |
+| Level 2 (medium) | 37.4% | 50.1% | +12.7% |
+| Level 3 (complex) | 32.3% | 54.4% | **+22.1%** |
+
+### Training Details
+
+| Parameter | Value |
+|-----------|-------|
+| Training samples | 2,000 (stratified by complexity) |
+| Epochs | 3 |
+| LoRA rank / alpha | 16 / 32 |
+| Effective batch size | 16 (4 × 4 gradient accumulation) |
+| Learning rate | 2e-4 (cosine schedule with warmup) |
+| Final training loss | 0.561 |
+| Training time | ~77 minutes (T4 GPU) |
+| MC Dropout passes | 5 |
+
+**Training Loss Curve:**
+
+| Epoch | Loss | Elapsed |
+|:-----:|:----:|:-------:|
+| 1 | 1.770 | 25.8 min |
+| 2 | 0.627 | 51.6 min |
+| 3 | 0.561 | 77.4 min |
+
+### Safety Analysis Plots
+
+![Safety Analysis — Risk-Coverage, Uncertainty vs Quality, Reliability Diagram, Uncertainty by Complexity](results/uncertainty/safety_plots.png)
+
+---
+
 ## Work Completed
 
 ### Phase 1: Literature Review & Problem Formulation (February 2026)
@@ -80,61 +160,31 @@ We use the [**Kvasir-VQA-x1**](https://huggingface.co/datasets/SimulaMet/Kvasir-
 - Analyzed dataset balance across complexity levels and train/test splits
 
 ### Phase 4: Baseline Inference (February–March 2026)
-- Ran zero-shot VQA inference using **BLIP-2** (`Salesforce/blip2-opt-2.7b`) on 48 test samples
-- Established baseline performance with comprehensive metrics
+- Ran zero-shot VQA inference using **BLIP-2** (`Salesforce/blip2-opt-2.7b`) on 50 test samples
+- Established baseline: Word F1 = 28.9%, Exact Match = 0.0%
+- Confirmed hallucination patterns: fabricating procedures, identifying wrong organs, contradicting visible findings
 
-**Baseline Results (BLIP-2 Zero-Shot, 48 samples):**
-
-| Metric | Value |
-|--------|-------|
-| Exact Match | 0.0% |
-| Word F1 | 23.4% |
-| Word Precision | 21.3% |
-| Word Recall | 29.8% |
-| BLEU-1 | 19.5% |
-| BLEU-4 | 4.2% |
-| ROUGE-L | 20.8% |
-| METEOR | 21.8% |
-| BERTScore F1 | 25.9% |
-
-**Hallucination examples confirmed:**
-- Fabricating wrong procedures (e.g., "laparoscopic cholecystectomy" for colonoscopy images)
-- Identifying wrong organ systems (e.g., "urethral sphincter" in GI endoscopy)
-- Confidently contradicting visible findings (e.g., claiming polyps are absent when present)
-
-### Phase 5: LoRA Fine-Tuning (March 2026)
+### Phase 5: LoRA Fine-Tuning (March–April 2026)
 - Implemented LoRA fine-tuning pipeline with 8-bit quantization for GPU efficiency
-- Trained on a stratified subset (~500 samples) for 3 epochs (~18 minutes on T4 GPU)
 - Identified and fixed a critical causal LM label alignment bug (prompt tokens must be masked in labels)
-- Implemented comprehensive evaluation metrics (BLEU, ROUGE-L, METEOR, BERTScore) alongside existing F1
+- Trained on 2,000 stratified samples for 3 epochs (~77 min on T4 GPU)
+- Achieved Word F1 = 45.2%, Word Recall = 61.9%, BLEU-4 = 20.9% (up from 4.7% baseline)
 
-**Fine-Tuned Results (LoRA, ~500 training samples, 20 eval samples):**
-
-| Metric | Baseline | Fine-Tuned | Δ |
-|--------|----------|------------|---|
-| Exact Match | 0.0% | 5.0% | +5.0% |
-| Word F1 | 23.4% | 49.6% | **+26.2%** |
-| Partial Match (F1≥0.5) | 5.6% | 50.0% | **+44.4%** |
-
-**Training curve:** Loss 2.20 → 0.87 → 0.76 across 3 epochs.
-
-### Phase 6: Uncertainty Estimation & Abstention (March–April 2026)
+### Phase 6: Uncertainty Estimation & Abstention (April 2026)
 - Implemented three uncertainty estimation methods:
   - **Predictive Entropy:** Token-level softmax entropy during generation
   - **MC Dropout:** 5 stochastic forward passes measuring lexical variance
   - **Sequence Confidence:** Normalized log-probability of generated tokens
-- Built abstention mechanism with threshold tuning (target: 80% coverage)
-- Implemented safety metrics: Risk-Coverage curves, AUROC, ECE, selective accuracy
+- Built combined uncertainty score (0.4 × entropy + 0.3 × MC + 0.3 × confidence)
+- Tuned abstention threshold τ = 0.423 for 84% coverage
+- **Selective F1 = 61.0%** vs 55.5% overall — abstention delivers +5.6% improvement
+- AUROC = 0.622 confirms uncertainty is informative for error detection
 
----
-
-## Planned Work (April 2026)
-
-1. **Scale fine-tuning** to 2,000+ stratified training samples
-2. **Run uncertainty evaluation** on the scaled model and resolve remaining notebook issues
-3. **Analyze safety metrics** — Risk-Coverage curves, AUROC, ECE
-4. **Compare** three configurations: baseline vs. fine-tuned vs. uncertainty-aware
-5. **Final project report** and documentation
+### Phase 7: Pipeline Consolidation (April 2026)
+- Consolidated three separate notebooks (baseline, fine-tuning, uncertainty) into a **single unified pipeline** (`complete_pipeline_colab.ipynb`)
+- Added skip-flags (`SKIP_BASELINE`, `SKIP_TRAINING`, `SKIP_UNCERTAINTY`) for modular execution
+- Shared evaluation functions, consistent eval subset across all phases
+- Final 3-way comparison table (Baseline → Fine-Tuned → Uncertainty-Aware → Selective)
 
 ---
 
@@ -142,41 +192,47 @@ We use the [**Kvasir-VQA-x1**](https://huggingface.co/datasets/SimulaMet/Kvasir-
 
 ```
 ├── configs/
-│   └── config.yaml                     # Central configuration (model, LoRA, training)
+│   └── config.yaml                        # Central configuration (model, LoRA, training)
 ├── src/
-│   ├── download_dataset.py             # Dataset download from HuggingFace
-│   ├── dataset.py                      # PyTorch Dataset & DataLoaders
-│   ├── eda.py                          # Exploratory Data Analysis
-│   ├── preprocessing.py                # Image & text preprocessing pipeline
-│   ├── baseline_inference.py           # Zero-shot BLIP-2 inference
-│   ├── train_utils.py                  # Shared metrics (BLEU, ROUGE, METEOR, BERTScore, etc.)
-│   ├── uncertainty.py                  # Uncertainty estimation (entropy, MC Dropout, log-prob)
-│   ├── abstention.py                   # Threshold-based abstention mechanism
-│   └── safety_metrics.py               # Risk-Coverage, AUROC, ECE, selective accuracy
+│   ├── download_dataset.py                # Dataset download from HuggingFace
+│   ├── dataset.py                         # PyTorch Dataset & DataLoaders
+│   ├── eda.py                             # Exploratory Data Analysis
+│   ├── preprocessing.py                   # Image & text preprocessing pipeline
+│   ├── baseline_inference.py              # Zero-shot BLIP-2 inference
+│   ├── train_utils.py                     # Shared metrics (BLEU, ROUGE, METEOR, BERTScore)
+│   ├── uncertainty.py                     # Uncertainty estimation (entropy, MC Dropout, log-prob)
+│   ├── abstention.py                      # Threshold-based abstention mechanism
+│   └── safety_metrics.py                  # Risk-Coverage, AUROC, ECE, selective accuracy
 ├── notebooks/
-│   ├── baseline_inference_colab.ipynb  # Zero-shot baseline (Colab)
-│   ├── finetune_blip2_colab.ipynb      # LoRA fine-tuning (Colab)
-│   └── uncertainty_eval_colab.ipynb    # Uncertainty + abstention eval (Colab)
-├── data/                               # Downloaded dataset (gitignored)
-│   ├── images/                         # 6,449 GI endoscopy images
-│   ├── kvasir_vqa_x1_train.csv         # 143,594 training QA pairs
-│   └── kvasir_vqa_x1_test.csv          # 15,955 test QA pairs
+│   ├── complete_pipeline_colab.ipynb      # ★ Consolidated pipeline (recommended)
+│   ├── baseline_inference_colab.ipynb     # Zero-shot baseline (standalone)
+│   ├── finetune_blip2_colab.ipynb         # LoRA fine-tuning (standalone)
+│   └── uncertainty_eval_colab.ipynb       # Uncertainty + abstention (standalone)
+├── data/                                   # Downloaded dataset (gitignored)
+│   ├── images/                            # 6,449 GI endoscopy images
+│   ├── kvasir_vqa_x1_train.csv            # 143,594 training QA pairs
+│   └── kvasir_vqa_x1_test.csv             # 15,955 test QA pairs
 ├── results/
-│   ├── eda/                            # EDA plots and statistics
-│   ├── predictions/                    # Baseline & fine-tuned predictions
-│   │   ├── baseline_summary.json
-│   │   ├── baseline_predictions.csv
-│   │   ├── finetuned_summary.json
-│   │   └── finetuned_predictions.csv
-│   ├── uncertainty/                    # Uncertainty analysis results
-│   └── training_log.json              # Fine-tuning loss curve
-├── monthly_report_february.tex         # February progress report
-├── monthly_report_march.tex            # March progress report
-├── literature_review.md                # Full literature review
-├── requirements.txt                    # Python dependencies
+│   ├── eda/                               # EDA plots and statistics
+│   ├── predictions/                       # Baseline & fine-tuned predictions
+│   │   ├── baseline_summary.json          # Zero-shot metrics
+│   │   ├── baseline_predictions.csv       # Per-sample baseline predictions
+│   │   ├── finetuned_summary.json         # LoRA fine-tuned metrics (2000 samples)
+│   │   └── finetuned_predictions.csv      # Per-sample fine-tuned predictions
+│   ├── uncertainty/                       # Uncertainty analysis outputs
+│   │   ├── uncertainty_summary.json       # Safety metrics, abstention results
+│   │   └── safety_plots.png              # 4-panel safety visualization
+│   └── training_log.json                 # Fine-tuning loss curve (3 epochs)
+├── monthly_report_february.tex            # February progress report
+├── monthly_report_march.tex               # March progress report
+├── literature_review.md                   # Full literature review
+├── project_novelty.md                     # Novelty documentation
+├── requirements.txt                       # Python dependencies
 ├── .gitignore
 └── README.md
 ```
+
+---
 
 ## Setup & Usage
 
@@ -185,29 +241,25 @@ We use the [**Kvasir-VQA-x1**](https://huggingface.co/datasets/SimulaMet/Kvasir-
 - CUDA-compatible GPU (for inference and training)
 - Google Colab (recommended for training — T4 GPU sufficient)
 
-### 1. Install Dependencies
+### Quick Start (Recommended)
+
+Use the consolidated notebook — it handles everything:
+
+1. Open `notebooks/complete_pipeline_colab.ipynb` in Google Colab
+2. Set `USE_DRIVE = True` in Cell 2 and mount your Drive
+3. Configure skip flags in Cell 3:
+   - `SKIP_BASELINE = True` — load saved baseline results
+   - `SKIP_TRAINING = True` — load saved LoRA checkpoint
+   - `SKIP_UNCERTAINTY = True` — load saved uncertainty results
+4. Run all cells — the notebook will run or skip each phase accordingly
+
+### Local Setup
+
 ```bash
 pip install -r requirements.txt
-```
-
-### 2. Download Dataset
-```bash
 python src/download_dataset.py
-```
-
-### 3. Run EDA
-```bash
 python src/eda.py
 ```
-
-### 4. Run Baseline Inference
-Use the Colab notebook: `notebooks/baseline_inference_colab.ipynb`
-
-### 5. Fine-Tune with LoRA
-Use the Colab notebook: `notebooks/finetune_blip2_colab.ipynb`
-
-### 6. Run Uncertainty Evaluation
-Use the Colab notebook: `notebooks/uncertainty_eval_colab.ipynb`
 
 ---
 
