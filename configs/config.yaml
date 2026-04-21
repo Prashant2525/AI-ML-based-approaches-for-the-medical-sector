@@ -1,0 +1,43 @@
+# ============================================================
+# Kvasir-VQA-x1 Medical VQA Project Configuration
+# ============================================================
+
+# --- Paths ---
+paths:
+  data_dir: "./data"
+  image_dir: "./data/images"
+  results_dir: "./results"
+  eda_dir: "./results/eda"
+  predictions_dir: "./results/predictions"
+
+# --- Dataset ---
+dataset:
+  hf_qa_repo: "SimulaMet/Kvasir-VQA-x1"
+  hf_image_repo: "SimulaMet-HOST/Kvasir-VQA"
+  image_split: "raw"
+  val_split_ratio: 0.1       # 10% of train set for validation
+  random_seed: 42
+
+# --- Image Preprocessing ---
+image:
+  size: 224
+  mean: [0.485, 0.456, 0.406]   # ImageNet stats
+  std: [0.229, 0.224, 0.225]
+
+# --- DataLoader ---
+dataloader:
+  batch_size: 16
+  num_workers: 4
+  pin_memory: true
+
+# --- Baseline Model ---
+model:
+  name: "Salesforce/blip2-opt-2.7b"
+  device: "cuda"
+  max_new_tokens: 64
+  num_inference_samples: 20
+
+# --- EDA ---
+eda:
+  sample_grid_size: 9          # 3x3 grid of sample images
+  top_n_question_classes: 15   # Top N classes to show in bar chart

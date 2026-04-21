@@ -1,0 +1,142 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage{geometry}
+\geometry{margin=1in}
+\usepackage{titlesec}
+\usepackage{graphicx}
+\usepackage{enumitem}
+
+% Section formatting
+\titleformat{\section}{\bfseries\large}{\thesection}{1em}{}
+\titleformat{\subsection}{\bfseries}{\thesubsection}{1em}{}
+
+\begin{document}
+
+% Title Page
+\begin{center}
+    \Large \textbf{Capstone Project Monthly Progress Report}\\[0.5cm]
+    \normalsize
+    
+    \textbf{Month:} February 2026 \\[0.5cm]
+    \textbf{Project Title:} Uncertainty-Aware Visual Question Answering on Kvasir-VQA-x1 \\[0.5cm]
+    \textbf{Project ID:} CAPSTONE\_2022\_22172\_4 \\[0.5cm]
+    \textbf{Student Name:} Sunit Soni \\
+    \textbf{Student Roll Number:} AP22110011494 \\
+
+    \textbf{Total Number of Students in Team:} 03 \\
+    \textbf{Details of Team Members:}\\
+       Prashant Dhimal (Roll No. AP22110011492)\\
+       Jayash Shrestha (Roll No. AP22110011481)\\[0.5cm]
+    \textbf{Supervisor:} Dr. M Krishna Siva Prasad \\[0.5cm]
+    Department of Computer Science and Engineering\\
+    SRM University AP
+\end{center}
+
+\hrule
+\vspace{1cm}
+
+\section{Project Overview}
+This project focuses on developing a Visual Question Answering (VQA) system for gastrointestinal medical images using the Kvasir-VQA-x1 dataset. The primary objective is to design an uncertainty-aware multimodal model that can answer clinical visual questions while minimizing hallucinations through a confidence-based abstention mechanism. The core research question investigates how effective uncertainty-aware training objectives are in reducing hallucinations in medical VQA tasks. The project targets safe and responsible deployment of multimodal AI in clinical decision support.
+
+\section{Work Completed During Last 1 Month}
+\begin{itemize}[leftmargin=*]
+    \item Conducted a literature review covering 10+ research papers on medical VQA, multimodal learning, and hallucination mitigation in vision-language models (including Gautam et al., 2025 and related Medico 2025 challenge papers).
+    \item Studied the Kvasir-VQA-x1 dataset structure, including image modalities, question types, and annotation format.
+    \item Explored uncertainty estimation techniques such as Monte Carlo Dropout, temperature scaling, and evidential deep learning.
+    \item Identified candidate base architectures including BiomedCLIP, LLaVA-Med, and CLIP-based adapter models for fine-tuning.
+    \item Set up the project repository, development environment (Python, PyTorch, HuggingFace Transformers), and modular codebase with configuration management.
+    \item Downloaded and prepared the full Kvasir-VQA-x1 dataset: 6,449 unique GI endoscopy images and 159,549 QA pairs (143,594 train / 15,955 test).
+    \item Performed comprehensive Exploratory Data Analysis (EDA) including question class distribution, complexity level analysis, text length distributions, and sample image visualizations.
+    \item Built a complete data preprocessing pipeline with text cleaning, image validation, and stratified train/validation/test splitting (90/10 from training data, stratified by complexity).
+    \item Implemented PyTorch \texttt{Dataset} and \texttt{DataLoader} classes with image augmentation (random flip, rotation, color jitter) for the training pipeline.
+    \item Ran baseline zero-shot VQA inference using pre-trained BLIP-2 (Salesforce/blip2-opt-2.7b) on 18 test samples across all three complexity levels. Results: 0\% exact-match accuracy, 27.0\% average word-level F1 score, with F1 degrading from 18.9\% (Level 1) to 35.1\% (Level 3). The model exhibited clear hallucination behavior, including fabricating wrong procedures (e.g., ``laparoscopic cholecystectomy'' for colonoscopy images) and wrong organ systems (e.g., ``urethral sphincter'' in GI endoscopy).
+\end{itemize}
+
+\section{Work Planned for This Month}
+\begin{itemize}[leftmargin=*]
+    \item Analyze baseline hallucination patterns to inform the design of the uncertainty-aware mechanism.
+    \item Finalize selection of the multimodal architecture for fine-tuning.
+    \item Begin implementing the uncertainty-aware training objective.
+\end{itemize}
+
+\section{Progress Status}
+\begin{itemize}[leftmargin=*]
+    \item Overall completion: $\sim$30\% (Literature review, dataset preparation, EDA, preprocessing pipeline, and baseline inference completed).
+    \item Timeline ahead of schedule with baseline results already establishing the performance benchmark for improvement.
+\end{itemize}
+
+\section{Challenges/Issues Faced}
+\begin{itemize}[leftmargin=*]
+    \item Understanding complex multimodal architectures and selecting an appropriate base model for fine-tuning on medical data.
+    \item Limited availability of compute resources (GPU) for training large vision-language models.
+    \item Defining a precise, operationalized notion of ``hallucination'' specific to gastrointestinal VQA tasks.
+    \item Navigating the diversity of question types in the Kvasir-VQA-x1 dataset (yes/no, counting, descriptive, etc.) and their varying difficulty levels.
+    \item Large dataset size (159K+ QA pairs, 6.4K images) requiring efficient data loading and preprocessing strategies.
+\end{itemize}
+
+\section{Learning Outcomes}
+\begin{itemize}[leftmargin=*]
+    \item Gained understanding of Visual Question Answering pipelines and multimodal fusion strategies (early fusion, late fusion, cross-attention).
+    \item Learned about hallucination problems in large vision-language models and existing mitigation strategies.
+    \item Studied uncertainty quantification methods applicable to deep learning, including predictive entropy and calibration metrics (ECE, AUROC).
+    \item Familiarized with the HuggingFace ecosystem for loading and fine-tuning pre-trained multimodal models.
+    \item Gained hands-on experience with PyTorch Dataset/DataLoader design, image preprocessing transforms, and stratified data splitting using scikit-learn.
+    \item Performed exploratory data analysis on a large-scale medical imaging dataset with publication-quality visualizations using matplotlib and seaborn.
+\end{itemize}
+
+\section{Plan for Next Month}
+\begin{itemize}[leftmargin=*]
+    \item Fine-tune the selected multimodal model on Kvasir-VQA-x1 training data using LoRA/QLoRA.
+    \item Implement the confidence-based abstention mechanism using predictive entropy thresholding.
+    \item Begin evaluation using Risk-Coverage curves and Expected Calibration Error (ECE).
+    \item Compare fine-tuned model performance against the zero-shot baseline (0\% exact match, 27\% F1).
+    \item Expected Deliverables: Fine-tuned model checkpoint, initial uncertainty analysis, comparative evaluation.
+\end{itemize}
+
+\section{Student Individual Contribution}
+
+\noindent\textbf{Sunit Soni (AP22110011494):}
+Led the literature review on uncertainty estimation and hallucination mitigation techniques in vision-language models. Surveyed methods including Monte Carlo Dropout, evidential deep learning, and selective prediction frameworks. Contributed to defining the research question and identifying the evaluation metrics (Risk-Coverage Curve, Expected Calibration Error) for the project. Executed baseline zero-shot inference using BLIP-2, obtaining 0\% exact-match and 27\% word F1 across complexity levels, with documented hallucination cases confirming the need for uncertainty-aware approaches.
+
+\vspace{0.4cm}
+
+\noindent\textbf{Prashant Dhimal (AP22110011492):}
+Conducted an in-depth exploration of the Kvasir-VQA-x1 dataset, including downloading and preparing the full dataset (6,449 images, 159,549 QA pairs). Set up the project GitHub repository and modular codebase with configuration management. Performed comprehensive exploratory data analysis (EDA) generating visualizations of question class distributions, complexity levels, and text length statistics. Built the data preprocessing pipeline with image validation and text cleaning.
+
+\vspace{0.4cm}
+
+\noindent\textbf{Jayash Shrestha (AP22110011481):}
+Reviewed and compared candidate multimodal architectures (BiomedCLIP, LLaVA-Med, ViLT, CLIP+adapter) for medical VQA tasks based on published benchmarks and computational requirements. Implemented the PyTorch Dataset and DataLoader classes with image augmentation transforms and stratified train/validation splitting. Developed and executed the baseline inference pipeline using BLIP-2 for zero-shot VQA evaluation, obtaining 0\% exact-match and 27\% word F1, confirming the need for domain-specific fine-tuning.
+
+\section*{9. Supervisor's Observation}
+
+\noindent\textbf{Student Completed:} \rule{3cm}{0.4pt}\% 
+of the planned/assigned task during the last month
+
+\vspace{0.5cm}
+
+\noindent\textbf{Comments:}
+
+\vspace{1cm}
+\noindent\rule{\textwidth}{0.4pt}
+
+\vspace{0.5cm}
+
+\noindent\textbf{Number of times students meet with supervisor (Online or Offline):} \rule{1cm}{0.4pt} \\
+
+\noindent\textbf{Satisfied with the Student's Work:} 
+\hspace{0.5cm} Satisfied 
+\hspace{1cm} Not Satisfied
+
+\vspace{0.5cm}
+
+\vspace{1.5cm}
+
+\noindent\begin{tabular}{p{7cm} p{6cm}}
+\textbf{Supervisor Signature:} & \rule{5cm}{0.4pt} \\
+\\
+\textbf{Date:} 
+\end{tabular}
+
+\vspace{0.8cm}
+
+\end{document}

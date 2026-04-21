@@ -1,0 +1,19 @@
+============================================================
+KVASIR-VQA-x1 DATASET STATISTICS
+============================================================
+  Total QA pairs:         159,549
+  Training QA pairs:      143,594
+  Test QA pairs:          15,955
+  Unique images (total):  6,449
+  Unique images (train):  6,212
+  Unique images (test):   4,058
+
+  Complexity distribution (full):
+    Level 1: 54,856 (34.4%)
+    Level 2: 52,349 (32.8%)
+    Level 3: 52,344 (32.8%)
+
+  Number of question classes: 3892
+  Avg answer length (words): 10.1
+  Avg question length (words): 13.7
+============================================================

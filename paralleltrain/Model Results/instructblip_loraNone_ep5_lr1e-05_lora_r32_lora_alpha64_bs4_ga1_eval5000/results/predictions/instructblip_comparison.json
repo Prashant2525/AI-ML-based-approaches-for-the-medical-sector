@@ -1,0 +1,63 @@
+{
+  "model": "InstructBLIP (Flan-T5-XL)",
+  "model_key": "instructblip",
+  "zero_shot": {
+    "model": "InstructBLIP (Flan-T5-XL) (Zero-Shot)",
+    "n": 4998,
+    "accuracy": 0.0,
+    "ece": 12.49,
+    "avg_word_f1": 12.5,
+    "avg_bleu_1": 3.1,
+    "avg_bleu_2": 1.6,
+    "avg_bleu_3": 0.9,
+    "avg_bleu_4": 0.7,
+    "avg_rouge_1": 12.1,
+    "avg_rouge_2": 1.8,
+    "avg_rouge_l": 11.7,
+    "avg_meteor": 5.4,
+    "auroc": 0.0,
+    "risk_coverage_auc": 100.0,
+    "avg_bertscore": 67.8,
+    "chrf_pp": 5.6,
+    "bert_f1": 67.8,
+    "bleurt": 0.081
+  },
+  "fine_tuned": {
+    "model": "InstructBLIP (Flan-T5-XL) (Fine-Tuned)",
+    "n": 4998,
+    "accuracy": 15.4,
+    "ece": 55.05,
+    "avg_word_f1": 70.9,
+    "avg_bleu_1": 66.3,
+    "avg_bleu_2": 55.6,
+    "avg_bleu_3": 47.1,
+    "avg_bleu_4": 40.3,
+    "avg_rouge_1": 70.8,
+    "avg_rouge_2": 51.5,
+    "avg_rouge_l": 67.7,
+    "avg_meteor": 66.0,
+    "auroc": 99.7,
+    "risk_coverage_auc": 56.0,
+    "avg_bertscore": 92.7,
+    "chrf_pp": 63.2,
+    "bert_f1": 92.7,
+    "bleurt": 0.749
+  },
+  "config": {
+    "lr": 1e-05,
+    "epochs_run": 5,
+    "lora_r": 32,
+    "lora_targets": [
+      "q",
+      "k",
+      "v",
+      "o"
+    ],
+    "train_samples": 143594,
+    "best_val_loss": 0.42425397237141926,
+    "batch_size": 4,
+    "grad_accum": 1,
+    "world_size": 6,
+    "effective_batch": 24
+  }
+}
