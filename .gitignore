@@ -43,3 +43,5 @@ checkpoints/
 # safetensors
 *.safetensors
 paralleltrain/**/adapter_model.safetensors
+
+.env

@@ -141,7 +141,7 @@ dist.barrier()
 
 os.environ['HF_HOME'] = CACHE_DIR
 os.environ['HF_HUB_ENABLE_HF_TRANSFER'] = '0'
-os.environ['HF_TOKEN'] = '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'
+os.environ['HF_TOKEN'] = os.getenv("HF_TOKEN")
 
 log(f'Model:    {MODEL_NAME}')
 log(f'GPUs:     {world_size}')
