@@ -131,7 +131,7 @@ for d in [RESULTS_DIR, CKPT_DIR, CACHE_DIR]:
 
 os.environ['HF_HOME'] = CACHE_DIR
 os.environ['HF_HUB_ENABLE_HF_TRANSFER'] = '0'
-os.environ['HF_TOKEN'] = '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'
+os.environ['HF_TOKEN'] = os.getenv("HF_TOKEN")
 
 DEVICE = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
