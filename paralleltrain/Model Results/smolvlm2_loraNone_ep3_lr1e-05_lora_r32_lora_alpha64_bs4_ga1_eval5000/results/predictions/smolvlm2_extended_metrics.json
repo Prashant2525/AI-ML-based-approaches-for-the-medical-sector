@@ -1,0 +1,16 @@
+{
+  "model": "SmolVLM2 (2.2B)",
+  "model_key": "HuggingFaceTB/SmolVLM2-2.2B-Instruct",
+  "n_zs": 4998,
+  "n_ft": 4998,
+  "zero_shot": {
+    "chrf_pp": 30.3,
+    "bert_f1": 80.9,
+    "bleurt": 0.526
+  },
+  "fine_tuned": {
+    "chrf_pp": 64.8,
+    "bert_f1": 93.1,
+    "bleurt": 0.762
+  }
+}
