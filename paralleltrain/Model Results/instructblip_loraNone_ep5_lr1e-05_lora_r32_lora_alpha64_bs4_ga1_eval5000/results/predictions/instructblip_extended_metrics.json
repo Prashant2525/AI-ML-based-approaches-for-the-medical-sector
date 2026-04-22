@@ -1,0 +1,16 @@
+{
+  "model": "InstructBLIP (Flan-T5-XL)",
+  "model_key": "Salesforce/instructblip-flan-t5-xl",
+  "n_zs": 4998,
+  "n_ft": 4998,
+  "zero_shot": {
+    "chrf_pp": 5.6,
+    "bert_f1": 67.8,
+    "bleurt": 0.081
+  },
+  "fine_tuned": {
+    "chrf_pp": 63.2,
+    "bert_f1": 92.7,
+    "bleurt": 0.749
+  }
+}
