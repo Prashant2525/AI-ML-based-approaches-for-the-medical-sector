@@ -1,6 +1,6 @@
-# Parallel Training (DDP)
+# Parallel Training & Uncertainty Evaluation (DDP)
 
-Distributed Data Parallel version of the VLM fine-tuning pipeline.
+Multi-GPU fine-tuning pipeline (DDP) and standalone uncertainty-aware evaluation for VLMs on Kvasir-VQA-x1.
 
 ## Prerequisites
 
@@ -10,26 +10,30 @@ pip install peft nltk rouge-score matplotlib seaborn
 pip install qwen-vl-utils protobuf sentencepiece bert-score
 ```
 
-## Usage
+---
 
-### 4 GPUs (GPUs 1-4)
+## 1. Training (`train_ddp.py`)
+
+DDP-based fine-tuning with QLoRA (4-bit) on the full 143K training set.
+
+### Supported Models
+
+| Model | Key | Params | Architecture |
+|-------|-----|--------|-------------|
+| InstructBLIP (Flan-T5-XL) | `instructblip` | 3.5B | Encoder-Decoder |
+| SmolVLM2-2.2B-Instruct | `smolvlm2` | 2.2B | Causal (Decoder-only) |
+
+### Usage
+
 ```bash
-CUDA_VISIBLE_DEVICES=1,2,3,4 torchrun --nproc_per_node=4 paralleltrain/train_ddp.py --model llava_med
+# 4 GPUs
+CUDA_VISIBLE_DEVICES=1,2,3,4 torchrun --nproc_per_node=4 paralleltrain/train_ddp.py --model smolvlm2
+
+# 6 GPUs
+CUDA_VISIBLE_DEVICES=1,2,3,4,5,6 torchrun --nproc_per_node=6 paralleltrain/train_ddp.py --model instructblip
 ```
 
-### 6 GPUs (GPUs 1-6)
-```bash
-CUDA_VISIBLE_DEVICES=1,2,3,4,5,6 torchrun --nproc_per_node=6 paralleltrain/train_ddp.py --model llava_med
-```
-
-### Choose model
-```bash
-CUDA_VISIBLE_DEVICES=1,2,3,4 torchrun --nproc_per_node=4 paralleltrain/train_ddp.py --model instructblip
-CUDA_VISIBLE_DEVICES=1,2,3,4 torchrun --nproc_per_node=4 paralleltrain/train_ddp.py --model qwen2_vl
-CUDA_VISIBLE_DEVICES=1,2,3,4 torchrun --nproc_per_node=4 paralleltrain/train_ddp.py --model llava_med
-```
-
-## Key DDP Differences vs Notebook
+### Key DDP Differences vs Notebook
 
 | Feature | Notebook (DataParallel) | Script (DDP) |
 |---------|:-:|:-:|
@@ -39,11 +43,97 @@ CUDA_VISIBLE_DEVICES=1,2,3,4 torchrun --nproc_per_node=4 paralleltrain/train_ddp
 | Data split | Batch scatter | DistributedSampler |
 | Val loss | Per-GPU only | all_reduce averaged |
 
-## Output Files
+### Training Output
 
-All outputs go to `results/predictions/`:
+Saved to `results/predictions/`:
 - `{model}_zs.csv` — Zero-shot per-sample results
 - `{model}_ft.csv` — Fine-tuned per-sample results
 - `{model}_comparison.json` — Full comparison with config
 - `{model}_loss.png` — Training loss curves
 - `{model}_metrics.png` — ZS vs FT bar chart
+
+---
+
+## 2. Uncertainty Evaluation (`uncertainty_eval.py`)
+
+Standalone, single-GPU script that applies the project's core novelty — **uncertainty-aware abstention** — to the DDP-trained models. Loads a saved LoRA checkpoint and runs three uncertainty estimation methods:
+
+1. **Predictive Entropy** — token-level softmax entropy during generation
+2. **MC Dropout** — multiple stochastic forward passes measuring lexical variance (via LoRA dropout)
+3. **Sequence Confidence** — normalized log-probability of generated tokens
+
+Combined into a single score: `0.4 × entropy + 0.3 × mc_dropout + 0.3 × (1 - confidence)`, used for threshold-based abstention.
+
+### Usage
+
+```bash
+# Smoke test (~5 min)
+python paralleltrain/uncertainty_eval.py --model smolvlm2 --eval_samples 10 --gpu 0
+
+# Full run — SmolVLM2 r32 (~4-6 hours on V100)
+python paralleltrain/uncertainty_eval.py --model smolvlm2 \
+  --checkpoint_dir "paralleltrain/Model Results/smolvlm2_loraNone_ep3_lr1e-05_lora_r32_lora_alpha64_bs4_ga1_eval5000" \
+  --eval_samples 500 --gpu 0
+
+# InstructBLIP (can run on a different GPU in parallel)
+python paralleltrain/uncertainty_eval.py --model instructblip \
+  --checkpoint_dir "paralleltrain/Model Results/instructblip_loraNone_ep5_lr1e-05_lora_r32_lora_alpha64_bs4_ga1_eval5000" \
+  --eval_samples 500 --gpu 1
+```
+
+### CLI Arguments
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--model` | `smolvlm2` | Model key: `instructblip` or `smolvlm2` |
+| `--checkpoint_dir` | auto-detect | Path to LoRA adapter directory |
+| `--eval_samples` | 500 | Number of test samples (stratified by complexity) |
+| `--mc_passes` | 5 | MC Dropout forward passes per sample |
+| `--target_coverage` | 0.80 | Abstention coverage target |
+| `--gpu` | 0 | GPU index |
+| `--max_new_tokens` | 64 | Max generated tokens |
+| `--seed` | 42 | Random seed |
+
+### Uncertainty Output
+
+Saved to `Model Results/{run}/results/uncertainty/`:
+- `uncertainty_predictions.csv` — Per-sample predictions, F1, entropy, MC uncertainty, combined score, abstained flag
+- `uncertainty_summary.json` — Aggregate safety metrics, abstention stats, selective accuracy table
+- `safety_plots.png` — 4-panel visualization (Risk-Coverage, Uncertainty vs Quality, Reliability Diagram, Uncertainty by Complexity)
+
+Also non-destructively updates `{model}_comparison.json` with an `"uncertainty"` key.
+
+---
+
+## Model Results
+
+Three completed training runs are stored in `Model Results/`:
+
+| Run | Model | Epochs | LoRA | Eval F1 (ZS → FT) |
+|-----|-------|:------:|:----:|:------------------:|
+| `instructblip_..._ep5_...` | InstructBLIP | 5 | r=32, α=64 | 12.5% → **70.9%** |
+| `smolvlm2_..._r32_...` | SmolVLM2 | 3 | r=32, α=64 | 33.8% → **72.5%** |
+| `smolvlm2_..._r16_...` | SmolVLM2 | 3 | r=16, α=32 | 33.8% → **71.8%** |
+
+All evaluated on 5,000 stratified test samples.
+
+---
+
+## File Structure
+
+```
+paralleltrain/
+├── train_ddp.py              # DDP fine-tuning + evaluation (multi-GPU)
+├── uncertainty_eval.py       # Uncertainty estimation + abstention (single GPU)
+├── README.md
+└── Model Results/
+    ├── instructblip_loraNone_ep5_.../
+    │   ├── adapter_config.json
+    │   └── results/
+    │       ├── predictions/    # ZS & FT CSVs, comparison JSON, plots
+    │       └── uncertainty/    # ← generated by uncertainty_eval.py
+    ├── smolvlm2_..._r32_.../
+    │   └── (same structure)
+    └── smolvlm2_..._r16_.../
+        └── (same structure)
+```
