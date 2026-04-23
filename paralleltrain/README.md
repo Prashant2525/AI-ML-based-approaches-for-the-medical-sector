@@ -81,9 +81,7 @@ python paralleltrain/uncertainty_eval.py --model instructblip \
   --eval_samples 500 --gpu 1
 
 # Nohup (detached) — SmolVLM2 r32
-nohup python paralleltrain/uncertainty_eval.py --model smolvlm2 \
-  --checkpoint_dir "paralleltrain/checkpoints/smolvlm2_loraNone_ep3_lr1e-05_lora_r32_lora_alpha64_bs4_ga1_eval5000" \
-  --eval_samples 500 --gpu 0 > uncertainty_smolvlm2.log 2>&1 &
+nohup python uncertainty_eval.py --model smolvlm2 --checkpoint_dir "checkpoints/smolvlm2_loraNone_ep3_lr1e-05_lora_r32_lora_alpha64_bs4_ga1_eval5000" --eval_samples 500 --gpu 0 > uncertainty_smolvlm2.log 2>&1 &
 ```
 
 ### CLI Arguments
