@@ -292,8 +292,10 @@ for idx, (_, row) in enumerate(tqdm(eval_df.iterrows(), total=len(eval_df), desc
         'exact_match': ' '.join(normalize_text(prediction)) == ' '.join(normalize_text(gt)),
         'word_f1': round(compute_word_f1(prediction, gt), 3),
         'bleu_1': round(compute_bleu(prediction, gt, 1), 3),
+        'bleu_2': round(compute_bleu(prediction, gt, 2), 3),
+        'bleu_3': round(compute_bleu(prediction, gt, 3), 3),
         'bleu_4': round(compute_bleu(prediction, gt, 4), 3),
-        'rouge_1': round(r['rouge1'], 3), 'rouge_l': round(r['rougeL'], 3),
+        'rouge_1': round(r['rouge1'], 3), 'rouge_2': round(r['rouge2'], 3), 'rouge_l': round(r['rougeL'], 3),
         'meteor': round(compute_meteor(prediction, gt), 3),
         'entropy': round(entropy, 4), 'confidence': round(confidence, 4),
         'mc_uncertainty': round(mc_unc, 4), 'mc_unique_ratio': round(unique_ratio, 3),
@@ -309,6 +311,52 @@ print(f'\nDone: {len(results)} samples in {elapsed/60:.1f}min ({elapsed/max(1,le
 
 if len(results) == 0:
     print('No results! Exiting.'); exit(1)
+
+# ── BERTScore & CHRF++ (post-loop, matches train_ddp.py) ──
+print('\nComputing BERTScore...')
+try:
+    from bert_score import score as bert_score_fn
+    preds_list = [r['prediction'] for r in results]
+    gts_list = [r['ground_truth'] for r in results]
+    _, _, bf1 = bert_score_fn(preds_list, gts_list, model_type='distilbert-base-uncased',
+                               batch_size=32, verbose=False, device=DEVICE)
+    for r, bs in zip(results, bf1.tolist()): r['bertscore_f1'] = round(bs, 3)
+    avg_bertscore = round(bf1.mean().item() * 100, 1)
+    print(f'  BERTScore F1: {avg_bertscore}%')
+except Exception as e:
+    print(f'  BERTScore skipped: {e}')
+    for r in results: r['bertscore_f1'] = 0.0
+    avg_bertscore = 0.0
+
+print('Computing CHRF++...')
+try:
+    from sacrebleu.metrics import CHRF
+    chrf = CHRF(word_order=2)
+    chrf_scores = [round(chrf.sentence_score(r['prediction'], [r['ground_truth']]).score, 2) for r in results]
+    for r, cs in zip(results, chrf_scores): r['chrf_pp'] = cs
+    avg_chrf = round(np.mean(chrf_scores), 1)
+    print(f'  CHRF++: {avg_chrf}')
+except Exception as e:
+    print(f'  CHRF++ skipped: {e}')
+    for r in results: r['chrf_pp'] = 0.0
+    avg_chrf = 0.0
+
+print('Computing BLEURT...')
+try:
+    from bleurt import score as bleurt_score
+    checkpoint = os.path.join(os.path.expanduser('~'), 'BLEURT-20')
+    if not os.path.exists(checkpoint):
+        checkpoint = '/raid/home/dgxuser40/Prashant/BLEURT-20'
+    scorer = bleurt_score.BleurtScorer(checkpoint)
+    bleurt_scores = [round(s, 3) for s in scorer.score(
+        references=[r['ground_truth'] for r in results],
+        candidates=[r['prediction'] for r in results])]
+    for r, bs in zip(results, bleurt_scores): r['bleurt'] = bs
+    avg_bleurt = round(np.mean(bleurt_scores), 3)
+    print(f'  BLEURT: {avg_bleurt}')
+except Exception as e:
+    print(f'  BLEURT skipped: {e}')
+    avg_bleurt = None
 
 # ── Abstention & Safety Metrics ──
 f1_arr = np.array([r['word_f1'] for r in results])
@@ -444,11 +492,18 @@ unc_summary = {
         'accuracy': round(sum(r['exact_match'] for r in results)/len(results)*100, 2),
         'word_f1': round(overall_f1, 2),
         'bleu_1': round(np.mean([r['bleu_1'] for r in results])*100, 2),
+        'bleu_2': round(np.mean([r['bleu_2'] for r in results])*100, 2),
+        'bleu_3': round(np.mean([r['bleu_3'] for r in results])*100, 2),
         'bleu_4': round(np.mean([r['bleu_4'] for r in results])*100, 2),
+        'rouge_1': round(np.mean([r['rouge_1'] for r in results])*100, 2),
+        'rouge_2': round(np.mean([r['rouge_2'] for r in results])*100, 2),
         'rouge_l': round(np.mean([r['rouge_l'] for r in results])*100, 2),
         'meteor': round(np.mean([r['meteor'] for r in results])*100, 2),
+        'bertscore': avg_bertscore,
+        'chrf_pp': avg_chrf,
+        'bleurt': avg_bleurt,
     },
-    'safety_metrics': {'auroc': round(auroc,4), 'auc_risk': round(auc_risk,4), 'ece': round(ece,4)},
+    'safety_metrics': {'auroc': round(auroc,4), 'auc_risk': round(auc_risk,4), 'ece': round(ece,4), 'risk_coverage_auc': round(auc_risk*100,1)},
     'abstention': {
         'threshold': round(best_t,4), 'coverage': round(best_cov,4),
         'selective_f1': round(sel_f1,2), 'overall_f1': round(overall_f1,2),
