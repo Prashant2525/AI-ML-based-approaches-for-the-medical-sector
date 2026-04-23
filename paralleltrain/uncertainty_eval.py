@@ -70,7 +70,7 @@ CACHE_DIR = os.path.join(PROJECT_DIR, 'hf_cache')
 if args.checkpoint_dir:
     CKPT_DIR = args.checkpoint_dir
 else:
-    mr = Path(PROJECT_DIR) / 'paralleltrain' / 'Model Results'
+    mr = Path(PROJECT_DIR) / 'paralleltrain' / 'checkpoints'
     candidates = sorted(mr.glob(f'{MODEL_KEY}_*'), key=lambda p: p.stat().st_mtime, reverse=True)
     CKPT_DIR = str(candidates[0]) if candidates else None
     if CKPT_DIR is None:
