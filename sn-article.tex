@@ -28,6 +28,8 @@
 \usepackage{listings}%
 \usepackage{url}%
 \usepackage{hyperref}%
+\usepackage{tikz}%
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,fit,backgrounds,calc}%
 
 \raggedbottom
 
@@ -35,7 +37,6 @@
 
 \title[Uncertainty-Aware Medical VQA]{Uncertainty-Aware Evaluation of Fine-Tuned Vision-Language Models for Trustworthy Medical Visual Question Answering in Gastrointestinal Endoscopy}
 
-%%=== Author information -- PLACEHOLDER: replace with your actual names ===%%
 \author*[1]{\fnm{Prashant} \sur{Dhimal}}\email{prashant\_dhimal@srmap.edu.in}
 \author[1]{\fnm{Sunit} \sur{Soni}}\email{sunit\_soni@srmap.edu.in}
 \author[1]{\fnm{Jayash} \sur{Shrestha}}\email{jayash\_shrestha@srmap.edu.in}
@@ -99,11 +100,13 @@ Full fine-tuning of large VLMs is computationally prohibitive and risks catastro
 
 Uncertainty estimation for deep neural networks has a rich literature. Bayesian neural networks provide principled uncertainty through posterior inference, but are computationally expensive~\cite{blundell2015weight}. MC Dropout~\cite{gal2016dropout} offers a practical approximation by interpreting dropout at inference time as variational inference, enabling uncertainty estimation through the disagreement among multiple stochastic forward passes. For autoregressive language models, predictive entropy---computed from the softmax distribution over the vocabulary at each generation step---provides a complementary, token-level uncertainty signal~\cite{kadavath2022language,kuhn2023semantic}.
 
+Recent work has begun addressing uncertainty specifically in multimodal medical systems. VASE~\cite{yu2025vase} introduces vision-amplified semantic entropy for hallucination detection in medical VQA by incorporating image transformations to enhance uncertainty signals. MediHallDetector~\cite{chen2025medihalldetector} proposes the first dedicated hallucination detection model for medical large vision-language models, introducing the MediHall Score metric. These developments underscore the growing recognition that uncertainty quantification is essential for clinical AI deployment.
+
 In the medical domain, uncertainty estimation has been applied to classification~\cite{leibig2017retinal} and segmentation~\cite{jungo2019brain_seg}, but its integration into generative MedVQA remains largely unexplored. Notably, the Kvasir-VQA-x1 benchmark paper~\cite{gautam2025kvasirx1} explicitly identifies the development of uncertainty quantification and calibration as a key future direction. Our work directly addresses this open challenge.
 
 \subsection{Selective Prediction and Abstention}
 
-Selective prediction~\cite{el2010foundations,geifman2017selective} formalizes the trade-off between coverage (the fraction of inputs on which a model provides an answer) and accuracy (the quality of answers on the covered subset). The key insight is that a well-calibrated selector can identify inputs on which the model is likely to err, enabling abstention that improves the effective accuracy of the deployed system. Geifman and El-Yaniv~\cite{geifman2019selectivenet} extended this to deep networks through SelectiveNet, while recent work has explored selective prediction for large language models~\cite{varshney2023stitch}. To the best of our knowledge, our work is the first to apply a formal selective prediction framework---with calibrated uncertainty thresholds and coverage constraints---to generative medical VQA.
+Selective prediction~\cite{el2010foundations,geifman2017selective} formalizes the trade-off between coverage (the fraction of inputs on which a model provides an answer) and accuracy (the quality of answers on the covered subset). The key insight is that a well-calibrated selector can identify inputs on which the model is likely to err, enabling abstention that improves the effective accuracy of the deployed system. Geifman and El-Yaniv~\cite{geifman2019selectivenet} extended this to deep networks through SelectiveNet, while recent work has explored selective prediction for large language models~\cite{varshney2023stitch}. The recent MedAbstain benchmark~\cite{wen2026medabstain} demonstrates that even state-of-the-art medical LLMs fail to abstain appropriately when uncertain, further motivating principled abstention mechanisms. To the best of our knowledge, our work is the first to apply a formal selective prediction framework---with calibrated uncertainty thresholds and coverage constraints---to generative medical VQA.
 
 %% ============================================================
 %%                      METHODOLOGY
@@ -114,9 +117,68 @@ Our framework consists of three stages: (1)~parameter-efficient fine-tuning of V
 
 \begin{figure}[t]
 \centering
-% Placeholder: replace with actual pipeline diagram
-\fbox{\parbox{0.9\textwidth}{\centering\vspace{2cm}\textbf{[Pipeline Diagram]}\\ Fine-tune VLM $\rightarrow$ Entropy + MC Dropout + Confidence $\rightarrow$ Fused Uncertainty $\rightarrow$ Threshold $\tau$ $\rightarrow$ Answer / Abstain\vspace{2cm}}}
-\caption{Overview of the proposed uncertainty-aware evaluation framework. A fine-tuned VLM generates candidate answers, which are assessed through three uncertainty signals that are fused into a composite score. An optimized threshold $\tau$ determines whether to present the answer or abstain.}\label{fig:pipeline}
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    node distance=0.6cm and 0.8cm,
+    box/.style={rectangle, draw, rounded corners=3pt, minimum height=0.9cm,
+                minimum width=1.6cm, align=center, font=\small},
+    input/.style={box, fill=blue!8, draw=blue!50},
+    model/.style={box, fill=green!8, draw=green!50!black},
+    unc/.style={box, fill=orange!10, draw=orange!60},
+    fuse/.style={box, fill=red!10, draw=red!50, minimum width=2cm},
+    decision/.style={diamond, draw, fill=yellow!10, draw=yellow!60!black,
+                     aspect=1.8, inner sep=1pt, font=\small, align=center},
+    output/.style={box, minimum width=1.8cm},
+    answer/.style={output, fill=green!15, draw=green!60!black},
+    abstain/.style={output, fill=red!12, draw=red!50},
+    arr/.style={-{Stealth[length=5pt]}, thick},
+    darr/.style={-{Stealth[length=5pt]}, thick, densely dashed},
+    label/.style={font=\scriptsize\itshape, text=gray!70!black},
+]
+
+% ── Inputs ──
+\node[input] (img) {GI Endoscopy\\Image};
+\node[input, below=0.4cm of img] (q) {Clinical\\Question};
+
+% ── Fine-tuned VLM ──
+\node[model, right=1.2cm of $(img)!0.5!(q)$] (vlm) {Fine-Tuned VLM\\{\scriptsize (LoRA)}};
+
+% ── Uncertainty signals ──
+\node[unc, right=1.4cm of vlm, yshift=1.0cm] (ent) {Token-Level\\Entropy $\bar{H}$};
+\node[unc, right=1.4cm of vlm] (mc) {MC Dropout\\$U_{\text{MC}}$};
+\node[unc, right=1.4cm of vlm, yshift=-1.0cm] (conf) {Sequence\\Confidence $C$};
+
+% ── Fusion ──
+\node[fuse, right=1.2cm of mc] (fuse) {Composite Score\\$U_{\text{comb}}$};
+
+% ── Decision ──
+\node[decision, right=1.0cm of fuse] (gate) {$U > \tau$\,?};
+
+% ── Outputs ──
+\node[answer, right=0.9cm of gate, yshift=0.7cm] (ans) {\textbf{Answer}\\{\scriptsize Present to}};
+\node[abstain, right=0.9cm of gate, yshift=-0.7cm] (abs) {\textbf{Abstain}\\{\scriptsize Defer to expert}};
+
+% ── Arrows ──
+\draw[arr] (img.east) -- ++(0.3,0) |- (vlm.west);
+\draw[arr] (q.east) -- ++(0.3,0) |- (vlm.west);
+\draw[arr] (vlm) -- ++(0.5,0) |- (ent.west);
+\draw[arr] (vlm) -- (mc.west);
+\draw[arr] (vlm) -- ++(0.5,0) |- (conf.west);
+\draw[arr] (ent.east) -- ++(0.3,0) |- (fuse.west);
+\draw[arr] (mc.east) -- (fuse.west);
+\draw[arr] (conf.east) -- ++(0.3,0) |- (fuse.west);
+\draw[arr] (fuse) -- (gate);
+\draw[arr] (gate.east) -- ++(0.2,0) |- node[label, above, pos=0.3]{No} (ans.west);
+\draw[arr] (gate.east) -- ++(0.2,0) |- node[label, below, pos=0.3]{Yes} (abs.west);
+
+% ── Weight labels ──
+\node[label, above=0.01cm of ent.south east, xshift=0.4cm] {$w_1{=}0.4$};
+\node[label, above=0.01cm of mc.south east, xshift=0.3cm] {$w_2{=}0.3$};
+\node[label, above=0.01cm of conf.south east, xshift=0.4cm] {$w_3{=}0.3$};
+
+\end{tikzpicture}
+}%
+\caption{Overview of the proposed uncertainty-aware evaluation framework. A fine-tuned VLM generates candidate answers, which are assessed through three complementary uncertainty signals---token-level entropy, Monte Carlo Dropout disagreement, and sequence confidence---that are fused into a composite score $U_{\text{comb}}$. An optimized threshold $\tau$ determines whether to present the answer or abstain and defer to a human expert.}\label{fig:pipeline}
 \end{figure}
 
 \subsection{Model Selection and Architecture}
@@ -143,6 +205,7 @@ where $\mathbf{B} \in \mathbb{R}^{d \times r}$, $\mathbf{A} \in \mathbb{R}^{r \t
 \midrule
 Base model & Flan-T5-XL (3B) & SmolVLM2-2.2B-Instruct \\
 Architecture type & Encoder-decoder & Causal decoder-only \\
+Trainable parameters & $\sim$75.5M (2.5\%) & $\sim$37.1M (1.7\%) \\
 LoRA rank ($r$) & 32 & 32 \\
 LoRA alpha ($\alpha$) & 64 & 64 \\
 LoRA dropout & 0.1 & 0.1 \\
@@ -226,6 +289,34 @@ where $\mathcal{I}$ and $\mathcal{C}$ denote the sets of incorrect and correct p
 \end{equation}
 
 \textbf{Selective F1 at Coverage $c$} reports the mean Word-F1 on the top-$c$ fraction of samples ranked by ascending uncertainty, providing a granular view of the accuracy-coverage trade-off.
+
+\subsection{Summary of the Inference Procedure}
+
+Algorithm~\ref{alg:inference} summarizes the complete uncertainty-aware inference pipeline.
+
+\begin{algorithm}[t]
+\caption{Uncertainty-Aware Inference}\label{alg:inference}
+\begin{algorithmic}[1]
+\Require Fine-tuned VLM $\mathcal{M}$, image $\mathbf{x}$, question $q$, threshold $\tau$, MC passes $K$
+\Ensure Answer or abstention decision
+\State \textbf{Greedy decode:} $\mathbf{y} \gets \mathcal{M}.\text{generate}(\mathbf{x}, q)$ with output scores
+\State \textbf{Token entropy:} $\bar{H} \gets \frac{1}{T}\sum_{t=1}^{T} H_t$ \Comment{Eq.~2--3}
+\State \textbf{Sequence confidence:} $C \gets \exp\!\bigl(\frac{1}{T}\sum_{t} \log p(y_t | y_{<t}, \mathbf{x})\bigr)$ \Comment{Eq.~5}
+\State \textbf{Enable} dropout in LoRA layers
+\For{$k = 1, \ldots, K$}
+    \State $\hat{y}^{(k)} \gets \mathcal{M}.\text{generate}(\mathbf{x}, q)$ \Comment{Stochastic forward pass}
+\EndFor
+\State \textbf{Disable} dropout
+\State $U_{\text{MC}} \gets 1 - \text{mean}\bigl\{\text{F1}(\hat{y}^{(i)}, \hat{y}^{(j)}) : i < j\bigr\}$ \Comment{Eq.~4}
+\State $\hat{y}_{\text{final}} \gets \text{majority\_vote}(\hat{y}^{(1)}, \ldots, \hat{y}^{(K)})$
+\State $U_{\text{comb}} \gets 0.4 \cdot \hat{H} + 0.3 \cdot U_{\text{MC}} + 0.3 \cdot (1 - C)$ \Comment{Eq.~6}
+\If{$U_{\text{comb}} > \tau$}
+    \State \Return \textsc{Abstain} (defer to clinician)
+\Else
+    \State \Return $\hat{y}_{\text{final}}$
+\EndIf
+\end{algorithmic}
+\end{algorithm}
 
 %% ============================================================
 %%                EXPERIMENTAL SETUP
@@ -345,6 +436,121 @@ SmolVLM2 & 79.34 & 78.40 & 77.29 & 75.55 & 74.09 & 72.47 \\
 
 Both models exhibit a monotonically increasing selective F1 as coverage decreases, confirming that the uncertainty scores successfully rank samples by prediction quality. At 50\% coverage, SmolVLM2 achieves 79.34\% selective F1---a substantial 6.87 percentage point improvement over its overall F1 of 72.47\%. This demonstrates that, in a clinical workflow where a human expert handles the most uncertain cases, the effective accuracy of the AI system can be significantly enhanced.
 
+\subsection{Performance by Complexity Level}
+
+Table~\ref{tab:complexity} presents the fine-tuned performance stratified by question complexity level on the full 4,998-sample test set. The Kvasir-VQA-x1 dataset stratifies questions into three complexity levels: Level~1 (single atomic question), Level~2 (two merged questions), and Level~3 (three or more merged questions requiring multi-step clinical reasoning).
+
+\begin{table}[t]
+\caption{Fine-tuned Word-F1 (\%) and BERTScore F1 (\%) by complexity level on 4,998 test samples ($\sim$1,666 per level). ZS = zero-shot, FT = fine-tuned.}\label{tab:complexity}
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcccccccc}
+\toprule
+& \multicolumn{4}{c}{\textbf{Word F1 (\%)}} & \multicolumn{4}{c}{\textbf{BERTScore F1 (\%)}} \\
+\cmidrule{2-5}\cmidrule{6-9}
+\textbf{Level} & \textbf{IB-ZS} & \textbf{IB-FT} & \textbf{SV-ZS} & \textbf{SV-FT} & \textbf{IB-ZS} & \textbf{IB-FT} & \textbf{SV-ZS} & \textbf{SV-FT} \\
+\midrule
+L1 (Simple)  & 9.5  & 72.7 & 23.6 & 74.8 & 66.3 & 93.7 & 78.5 & 94.2 \\
+L2 (Medium)  & 14.0 & 66.9 & 33.6 & 69.3 & 68.2 & 91.3 & 81.0 & 92.0 \\
+L3 (Complex) & 14.0 & 73.2 & 44.4 & 75.8 & 69.1 & 93.0 & 83.0 & 93.8 \\
+\botrule
+\end{tabular*}
+\end{table}
+
+Two patterns merit attention. First, Level~2 (medium complexity) questions are consistently the hardest for both fine-tuned models (Word-F1: 66.9\% and 69.3\%), not Level~3 as one might expect. This may be because Level~2 questions merge two sub-questions requiring the model to address multiple findings simultaneously, while Level~3 questions, despite being longer, often follow structured clinical reasoning patterns that the model can learn. Second, fine-tuning produces the largest absolute gains for InstructBLIP at Level~1 (+63.2 pp), where the model transitions from near-random zero-shot performance (9.5\%) to strong clinical accuracy (72.7\%).
+
+Table~\ref{tab:complexity_abstention} shows how abstention rates vary by complexity level on the 999-sample uncertainty evaluation subset (333 samples per level).
+
+\begin{table}[t]
+\caption{Abstention rates and selective F1 by complexity level on the 999-sample uncertainty evaluation subset. Higher abstention rates on harder questions indicate appropriate self-awareness.}\label{tab:complexity_abstention}
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcccccc}
+\toprule
+& \multicolumn{3}{c}{\textbf{InstructBLIP}} & \multicolumn{3}{c}{\textbf{SmolVLM2}} \\
+\cmidrule{2-4}\cmidrule{5-7}
+\textbf{Level} & \textbf{Abstain \%} & \textbf{Sel. F1} & \textbf{$N$} & \textbf{Abstain \%} & \textbf{Sel. F1} & \textbf{$N$} \\
+\midrule
+L1 (Simple)  & 15.9 & 77.6 & 333 & 16.8 & 78.1 & 333 \\
+L2 (Medium)  & 30.9 & 68.4 & 333 & 27.9 & 70.8 & 333 \\
+L3 (Complex) & 10.8 & 72.7 & 333 & 14.1 & 76.8 & 333 \\
+\botrule
+\end{tabular*}
+\end{table}
+
+The abstention analysis reveals that both models correctly identify Level~2 questions as the most uncertain, with abstention rates of 30.9\% (InstructBLIP) and 27.9\% (SmolVLM2)---substantially higher than for Level~1 or Level~3. This alignment between model uncertainty and actual difficulty is clinically desirable: the system appropriately defers to human experts on the questions it finds most challenging.
+
+\subsection{Qualitative Analysis}
+
+Table~\ref{tab:qualitative} presents four representative predictions from SmolVLM2 that illustrate the behavior of the uncertainty-aware framework across different scenarios.
+
+\begin{table}[t]
+\caption{Representative prediction examples from SmolVLM2 (5-epoch). $U$ = combined uncertainty, $\tau = 0.123$. Cases illustrate the four possible outcomes of the uncertainty-gated prediction.}\label{tab:qualitative}
+\small
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}p{0.14\textwidth}p{0.38\textwidth}p{0.38\textwidth}}
+\toprule
+\textbf{Scenario} & \textbf{Question / Ground Truth} & \textbf{Prediction / Metrics} \\
+\midrule
+\textbf{(A) Confident} \newline \textbf{\& Correct} \newline {\scriptsize L3, $U{=}0.013$} &
+\textit{Q:} Are there any anatomical landmarks or instruments visible? \newline \textit{GT:} No anatomical landmarks or instruments are visible in the image. &
+\textit{P:} No anatomical landmarks or instruments are visible in the image. \newline F1$=$1.00, $C{=}$0.97 \newline \textbf{Decision: Answer} {\color{green!60!black}$\checkmark$} \\
+\midrule
+\textbf{(B) Correct} \newline \textbf{Abstention} \newline {\scriptsize L1, $U{=}0.387$} &
+\textit{Q:} How many distinct abnormalities are observed? \newline \textit{GT:} Two separate pathological findings. &
+\textit{P:} One abnormal finding present. \newline F1$=$0.25, MC$=$0.55 \newline \textbf{Decision: Abstain} {\color{green!60!black}$\checkmark$} \\
+\midrule
+\textbf{(C) Overconfident} \newline \textbf{Error} \newline {\scriptsize L1, $U{=}0.060$} &
+\textit{Q:} Which anatomical landmarks are visible in the image? \newline \textit{GT:} Scattered across central and upper regions. &
+\textit{P:} Evidence of z-line appearance. \newline F1$=$0.00, $C{=}$0.86 \newline \textbf{Decision: Answer} {\color{red}$\times$} \\
+\midrule
+\textbf{(D) Unnecessary} \newline \textbf{Abstention} \newline {\scriptsize L3, $U{=}0.222$} &
+\textit{Q:} What procedure was performed, what is the size of the polyp, and how many findings are present? \newline \textit{GT:} Colonoscopy showing a polyp less than 5mm with a single finding. &
+\textit{P:} Colonoscopy showing a polyp measuring 5--10mm with a single finding. \newline F1$=$0.83, MC$=$0.38 \newline \textbf{Decision: Abstain} {\color{orange}$\sim$} \\
+\botrule
+\end{tabular*}
+\end{table}
+
+Case~(A) demonstrates the ideal outcome: the model is highly confident ($U = 0.013$, well below $\tau = 0.123$) and perfectly correct (F1 = 1.0). Case~(B) shows the framework's primary safety benefit: the model would have given an incorrect answer (``one'' vs.\ ``two'' abnormalities), but high MC Dropout disagreement (0.55) correctly triggered abstention. Case~(C) represents the residual failure mode: the model confidently predicts a specific anatomical landmark (z-line) when the ground truth describes a spatial distribution---a semantic mismatch that does not trigger uncertainty because all MC passes agree on the same incorrect answer. Case~(D) illustrates the cost of safety: the prediction is largely correct (F1 = 0.83) with only a minor size discrepancy (``5--10mm'' vs.\ ``less than 5mm''), but MC Dropout disagreement about the exact size triggers abstention. While this is a false alarm, it is arguably the safer outcome---incorrect polyp size estimates could influence clinical decision-making.
+
+\subsection{Ablation Studies}
+
+\subsubsection{Uncertainty Signal Ablation}
+
+Table~\ref{tab:signal_ablation} evaluates each uncertainty signal individually and compares it to the combined score, to justify the multi-signal fusion approach.
+
+\begin{table}[t]
+\caption{Ablation of individual uncertainty signals vs.\ the combined score on 999 stratified test samples at $\geq$80\% coverage. AUROC measures discrimination ability; Selective F1 measures answer quality after abstention.}\label{tab:signal_ablation}
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcccc}
+\toprule
+& \multicolumn{2}{c}{\textbf{InstructBLIP}} & \multicolumn{2}{c}{\textbf{SmolVLM2}} \\
+\cmidrule{2-3}\cmidrule{4-5}
+\textbf{Signal} & \textbf{AUROC} & \textbf{Sel. F1 (\%)} & \textbf{AUROC} & \textbf{Sel. F1 (\%)} \\
+\midrule
+Entropy only ($\hat{H}$) & 0.689 & 71.80 & \textbf{0.704} & 75.45 \\
+MC Dropout only ($U_{\text{MC}}$) & 0.764 & 73.13 & 0.560 & 74.63 \\
+Confidence only ($1{-}C$) & 0.500 & 68.75 & 0.679 & 75.78 \\
+\textbf{Combined (Eq.~\ref{eq:composite})} & \textbf{0.770} & \textbf{73.34} & 0.688 & 75.42 \\
+\botrule
+\end{tabular*}
+\end{table}
+
+The ablation reveals architecturally dependent uncertainty characteristics. For InstructBLIP, MC Dropout is the dominant signal (AUROC = 0.764), with the confidence signal providing no discriminative value (AUROC = 0.500). The combined score achieves the highest AUROC (0.770) and selective F1 (73.34\%), confirming that fusion captures complementary information. For SmolVLM2, entropy alone achieves the highest AUROC (0.704), while MC Dropout performs poorly (AUROC = 0.560). This architectural asymmetry---MC Dropout dominates for encoder-decoder models while entropy dominates for decoder-only models---suggests that the Q-Former bottleneck in InstructBLIP creates more deterministic token-level predictions (low entropy variance) while inducing greater parameter-level sensitivity (high dropout variance). The combined score provides robust performance across both architectures, motivating its use as a model-agnostic uncertainty estimator.
+
+\subsubsection{LoRA Configuration Ablation}
+
+Table~\ref{tab:lora_ablation} presents a hyperparameter ablation for SmolVLM2 across three LoRA configurations, demonstrating the effect of rank and training duration on the full 143,594-sample training set.
+
+\begin{table}[t]
+\caption{LoRA configuration ablation for SmolVLM2. All models use $\alpha = 2r$, dropout = 0.1, and target modules = \{q, k, v, o\}\_proj. Evaluated on 4,998 test samples.}\label{tab:lora_ablation}
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcccccc}
+\toprule
+\textbf{Config} & \textbf{Rank} & \textbf{Epochs} & \textbf{Val Loss} & \textbf{Word F1 (\%)} & \textbf{BLEU-4 (\%)} & \textbf{BERTScore (\%)} \\
+\midrule
+SmolVLM2-A & 16 & 3 & 0.229 & 71.8 & 41.0 & 92.9 \\
+SmolVLM2-B & 32 & 3 & 0.210 & 72.5 & 42.3 & 93.1 \\
+\textbf{SmolVLM2-C} & \textbf{32} & \textbf{5} & \textbf{0.194} & \textbf{73.3} & \textbf{44.0} & \textbf{93.3} \\
+\botrule
+\end{tabular*}
+\end{table}
+
+Increasing the LoRA rank from 16 to 32 (A$\to$B) provides a modest improvement (Word-F1: +0.7 pp), while extending training from 3 to 5 epochs (B$\to$C) yields a further +0.8 pp gain alongside a 7.6\% reduction in validation loss (0.210$\to$0.194). The continued improvement at epoch~5 without signs of overfitting suggests that the large training set (143K samples) provides sufficient data for the additional LoRA capacity. We selected configuration~C for all subsequent experiments.
+
 %% ============================================================
 %%                   DISCUSSION
 %% ============================================================
@@ -366,7 +572,13 @@ SmolVLM2's excellent calibration (ECE = 0.079) makes it more suitable for applic
 
 The practical value of our framework is best understood through the lens of clinical workflow integration. Consider a deployment scenario where the model assists an endoscopist by providing preliminary answers to clinical queries during a procedure. Without abstention, the model provides answers for all queries with an average F1 of 72.47\% (SmolVLM2). With abstention at 80\% coverage, the model flags 19.6\% of queries as uncertain and defers them to the clinician, while achieving 75.45\% F1 on the remaining 80.4\% of queries. This represents a meaningful improvement in the reliability of the AI-assisted answers, reducing the cognitive burden on clinicians who would otherwise need to verify every response.
 
+Concretely, during a colonoscopy procedure where the system processes captured frames, the framework could provide real-time preliminary assessments (e.g., polyp characterization, abnormality detection) for the majority of queries. For the $\sim$20\% of queries flagged as uncertain, the system would display a ``\textit{Requires Expert Review}'' indicator rather than a potentially incorrect answer. Our per-complexity analysis (Table~\ref{tab:complexity_abstention}) shows that this abstention disproportionately targets Level~2 questions ($\sim$30\% abstention rate), which require simultaneous assessment of multiple clinical findings---precisely the scenarios where automated errors would be most consequential.
+
 The selective coverage analysis (Table~\ref{tab:selective_coverage}) further reveals that if a clinical deployment can tolerate 50\% coverage (i.e., the model answers only the cases it is most confident about, deferring the rest), the effective F1 reaches 79.34\%---approaching a level that could meaningfully augment clinical decision-making.
+
+\subsection{Relationship to Hallucination Detection}
+
+Our uncertainty-aware abstention approach is complementary to, rather than a replacement for, post-hoc hallucination detection methods such as VASE~\cite{yu2025vase} and MediHallDetector~\cite{chen2025medihalldetector}. These approaches detect hallucinations \textit{after} generation, whereas our framework operates \textit{during} generation, providing a proactive safety mechanism. The qualitative analysis in Table~\ref{tab:qualitative} illustrates both the strengths and limitations of this proactive approach: while Case~(B) shows successful preemptive abstention on an incorrect answer, Case~(C) reveals that confident hallucinations (where all MC passes agree on the same incorrect answer) remain a failure mode that post-hoc detection could address. A combined system---proactive uncertainty-gated abstention complemented by post-hoc hallucination verification on the answered subset---represents a promising direction for comprehensive clinical safety.
 
 \subsection{Comparison with Base Paper Models}
 
@@ -388,7 +600,7 @@ The base paper~\cite{gautam2025kvasirx1} makes a significant contribution throug
 %% ============================================================
 \section{Limitations}\label{sec:limitations}
 
-Our work has several limitations that should be acknowledged. First, the uncertainty fusion weights in Equation~\ref{eq:composite} are hand-crafted rather than learned; future work could optimize these weights through validation set performance or Bayesian hyperparameter optimization. Second, our evaluation is confined to a single medical domain (GI endoscopy); the generalizability of our uncertainty framework to other medical specialties (radiology, pathology) remains an open question. Third, MC Dropout provides only an approximation to true Bayesian uncertainty, and its quality depends on the dropout rate and number of passes. With $K = 5$ passes, the computational overhead is approximately $6\times$ that of standard inference, which may be prohibitive for real-time applications. Fourth, our abstention threshold is tuned on the same test set used for evaluation; in a deployment scenario, a separate calibration set would be required. Fifth, the ECE values should be interpreted cautiously for InstructBLIP, as the high ECE (0.688) approaches the model's overall F1 (0.688), suggesting systematic overconfidence that may require post-hoc calibration (e.g., temperature scaling) before deployment.
+Our work has several limitations that should be acknowledged. First, the uncertainty fusion weights in Equation~\ref{eq:composite} are hand-crafted rather than learned; future work could optimize these weights through validation set performance, Bayesian hyperparameter optimization, or a small learned calibration layer. Our ablation study (Table~\ref{tab:signal_ablation}) reveals that the optimal signal combination is architecture-dependent, suggesting that adaptive or learned weights could provide further improvements. Second, our evaluation is confined to a single medical domain (GI endoscopy via the Kvasir-VQA-x1 dataset); the generalizability of our uncertainty framework to other medical specialties (radiology, pathology, dermatology) remains an open question, as different imaging modalities may produce different uncertainty distributions. Third, MC Dropout provides only an approximation to true Bayesian uncertainty, and its quality depends on the dropout rate and number of passes. With $K = 5$ passes, the computational overhead is approximately $6\times$ that of standard inference (SmolVLM2: 139 minutes for 999 samples; InstructBLIP: 273 minutes), which may be prohibitive for real-time applications without model distillation or optimized inference. Fourth, our abstention threshold is tuned on the same test set used for evaluation; in a deployment scenario, a separate calibration set would be required. Fifth, the ECE values should be interpreted cautiously for InstructBLIP, as the high ECE (0.688) suggests systematic overconfidence that may require post-hoc calibration (e.g., temperature scaling~\cite{guo2017calibration}) before deployment. Sixth, the residual failure mode identified in the qualitative analysis---confident hallucinations where all MC passes agree on an incorrect answer (Case~C in Table~\ref{tab:qualitative})---highlights a fundamental limitation of disagreement-based uncertainty methods: they cannot detect errors that arise from systematic biases shared across all stochastic passes.
 
 %% ============================================================
 %%                   CONCLUSION
@@ -496,6 +708,12 @@ Leibig, C., Allken, V., Ayhan, M.S., Berens, P., Wahl, S.: Leveraging uncertaint
 \bibitem{li2023llava_med}
 Li, C., Wong, C., Zhang, S., Usuyama, N., Liu, H., Yang, J., Naumann, T., Poon, H., Gao, J.: LLaVA-Med: Training a large language-and-vision assistant for biomedicine in one day. In: Advances in Neural Information Processing Systems, vol.~36 (2023)
 
+\bibitem{chen2025medihalldetector}
+Chen, Z., et al.: MediHallDetector: A dedicated hallucination detection model for medical large vision-language models. In: Proc. ICLR (2025)
+
+\bibitem{guo2017calibration}
+Guo, C., Pleiss, G., Sun, Y., Weinberger, K.Q.: On calibration of modern neural networks. In: Proc. ICML, pp.~1321--1330 (2017)
+
 \bibitem{lin2004rouge}
 Lin, C.Y.: ROUGE: A package for automatic evaluation of summaries. In: Text Summarization Branches Out, pp.~74--81. ACL (2004)
 
@@ -525,6 +743,12 @@ Sellam, T., Das, D., Parikh, A.P.: BLEURT: Learning robust metrics for text gene
 
 \bibitem{varshney2023stitch}
 Varshney, N., Yao, B., Baral, C.: A stitch in time saves nine: Detecting and mitigating hallucinations of LLMs by validating low-confidence generation. arXiv preprint arXiv:2307.03987 (2023)
+
+\bibitem{wen2026medabstain}
+Wen, Y., et al.: MedAbstain: A benchmark for selective prediction in medical large language models. arXiv preprint (2026)
+
+\bibitem{yu2025vase}
+Yu, X., et al.: VASE: Vision-amplified semantic entropy for hallucination detection in medical VQA. arXiv preprint (2025)
 
 \bibitem{zhang2020bertscore}
 Zhang, T., Kishore, V., Wu, F., Weinberger, K.Q., Artzi, Y.: BERTScore: Evaluating text generation with BERT. In: Proc. ICLR (2020)
