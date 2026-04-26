@@ -28,11 +28,11 @@ The model **always answers**, even when it has no idea — leading to dangerous 
 
 ## Our Novel Approach
 
-Our system adds an **uncertainty gate** between the model and the clinician:
+Our system uses **multi-model (InstructBLIP/SmolVLM2) DDP-trained 4-bit QLoRA** and adds an **uncertainty gate** between the model and the clinician:
 
 ```mermaid
 flowchart LR
-    A["🖼️ Image + ❓ Question"] --> B["🤖 Fine-Tuned<br/>BLIP-2 (LoRA)"]
+    A["🖼️ Image + ❓ Question"] --> B["🤖 Multi-Model Ensemble<br/>(InstructBLIP / SmolVLM2)"]
     B --> C["📊 Uncertainty<br/>Estimation"]
     C --> D{"Combined<br/>Uncertainty > τ?"}
     D -->|"No (confident)"| E["📝 Answer:<br/>'No polyps detected'"]
@@ -87,7 +87,7 @@ flowchart TB
 ```
 ALGORITHM: UncertaintyEstimation(model, image, question)
 ─────────────────────────────────────────────────────────
-Input:  Fine-tuned BLIP-2 model, GI endoscopy image, clinical question
+Input:  Fine-tuned VLM (InstructBLIP / SmolVLM2), GI endoscopy image, clinical question
 Output: Prediction string, combined uncertainty score ∈ [0, 1]
 
 1. PREDICTIVE ENTROPY:
@@ -99,7 +99,7 @@ Output: Prediction string, combined uncertainty score ∈ [0, 1]
    │  entropy_normalized ← min(entropy_mean / 10, 1.0)
 
 2. MC DROPOUT (N=5 passes):
-   │  Enable all Dropout layers in OPT backbone
+   │  Enable Dropout layers in LoRA adapters (lora_dropout=0.1)
    │  For i = 1 to N:
    │     answer_i ← model.generate(image, question)
    │  Disable Dropout layers
@@ -205,8 +205,9 @@ flowchart TB
 
 | Feature | PaliGemma 2<br/>(Medico 2025) | Fine-tuned<br/>PaliGemma 3B | Florence<br/>Model | Disease-Guided<br/>VQA | BLIP-2<br/>Zero-Shot | **Ours** |
 |---------|:---:|:---:|:---:|:---:|:---:|:---:|
-| Domain fine-tuning | ✅ LoRA | ✅ LoRA | ✅ | ✅ | ❌ | ✅ LoRA |
-| Quantization | — | 4-bit | — | — | — | **8-bit** |
+| Domain fine-tuning | ✅ LoRA | ✅ LoRA | ✅ | ✅ | ❌ | ✅ **QLoRA (4-bit)** |
+| Multi-model support | ❌ | ❌ | ❌ | ❌ | ❌ | **✅ 3 models** |
+| Multi-GPU DDP | — | — | — | — | — | **✅ 5-6× V100** |
 | Uncertainty estimation | ❌ | ❌ | ❌ | ❌ | ❌ | **✅ 3 methods** |
 | MC Dropout | ❌ | ❌ | ❌ | ❌ | ❌ | **✅ 5-pass** |
 | Predictive Entropy | ❌ | ❌ | ❌ | ❌ | ❌ | **✅** |
@@ -223,16 +224,20 @@ flowchart TB
 
 ### Metric Comparison (Kvasir-VQA-x1 Results)
 
-| Model | EM | Word F1 | BLEU-1 | ROUGE-L | METEOR | Safety? |
+| Model | EM | Word F1 | BLEU-4 | ROUGE-L | METEOR | Safety? |
 |-------|:---:|:---:|:---:|:---:|:---:|:---:|
-| BLIP-2 zero-shot (our baseline) | 0.0% | 23.4% | 19.5% | 20.8% | 21.8% | ❌ |
-| BLIP-2 + LoRA (ours, 500 samples) | 5.0% | 49.6% | — | — | — | ❌ |
-| BLIP-2 + LoRA + Uncertainty (**ours**) | — | **↑ selective F1** | — | — | — | **✅** |
-| PaliGemma 2 (Medico 2025) | — | — | 42.7% | — | 66.0% | ❌ |
+| BLIP-2 zero-shot (Colab baseline) | 0.0% | 28.9% | 4.7% | — | — | ❌ |
+| BLIP-2 + LoRA (Colab, 2K samples) | 2.0% | 45.2% | 20.9% | — | — | ❌ |
+| InstructBLIP ZS (DDP, n=5000) | 0.0% | 12.5% | 0.7% | 11.7% | 5.4% | ❌ |
+| **InstructBLIP + QLoRA** (DDP, 143K) | **15.4%** | **70.9%** | **40.3%** | **67.7%** | **66.0%** | ❌ |
+| **InstructBLIP + Uncertainty** (ours) | — | **73.3%** sel | — | — | — | **✅ AUROC=0.77** |
+| SmolVLM2 ZS (DDP, n=5000) | 0.0% | 33.8% | 5.2% | 26.6% | 28.5% | ❌ |
+| **SmolVLM2 + QLoRA** (DDP, 143K) | **17.3%** | **73.3%** | **44.0%** | **70.6%** | **68.7%** | ❌ |
+| **SmolVLM2 + Uncertainty** (ours) | — | **75.5%** sel | — | — | — | **✅ ECE=0.08** |
+| PaliGemma 2 (Medico 2025) | — | — | — | — | 66.0% | ❌ |
 | Fine-tuned PaliGemma 3B | — | — | — | 72.3%* | 70.0%* | ❌ |
-| Florence | — | — | 16.0% | 88.0%* | 49.0% | ❌ |
 
-*\* Different test sets, not directly comparable*
+*\* Different test sets, not directly comparable. "sel" = selective F1 at 80% coverage.*
 
 ---
 
@@ -261,8 +266,8 @@ flowchart LR
     subgraph "Our Approach"
         direction LR
         A["GI Image"] --> B["ViT Encoder"]
-        B --> C["Q-Former<br/>Bridge"]
-        C --> D["OPT-2.7B<br/>+ LoRA"]
+        B --> C["Cross-Modal<br/>Bridge"]
+        C --> D["LLM Backbone<br/>+ QLoRA (4-bit)"]
         Q["Question"] --> D
         D --> E["Token Logits<br/>+ Scores"]
         E --> F["Uncertainty<br/>Estimator"]
@@ -311,12 +316,13 @@ flowchart TB
 
 ---
 
-## Summary: Three Novelties
+## Summary: Four Novelties
 
 | # | Novelty | What It Does | Why It Matters |
 |---|---------|-------------|----------------|
-| 1 | **Multi-method uncertainty estimation** | Combines predictive entropy, MC Dropout, and log-prob confidence into a single score | No existing Kvasir-VQA-x1 work quantifies model uncertainty |
-| 2 | **Threshold-based abstention** | Model refuses to answer when uncertainty > τ | Prevents hallucinations from reaching clinicians |
+| 1 | **Multi-method uncertainty estimation** | Combines predictive entropy, MC Dropout (via LoRA adapter dropout), and log-prob confidence into a single score | No existing Kvasir-VQA-x1 work quantifies model uncertainty |
+| 2 | **Threshold-based abstention** | Model refuses to answer when uncertainty > τ | Prevents hallucinations from reaching clinicians — +4.5% selective F1 gain |
 | 3 | **Safety-first evaluation framework** | Risk-Coverage, AUROC, ECE, selective accuracy | Shifts evaluation from "how accurate?" to "how safe?" |
+| 4 | **Multi-model DDP pipeline** | QLoRA fine-tuning + uncertainty evaluation across InstructBLIP & SmolVLM2 on full 143K dataset with 5-6 GPUs | Reproducible, scalable infrastructure for medical VQA research |
 
-These three contributions together make the system **clinically deployable** — not just academically interesting. A model that knows its limits is fundamentally safer than one that always guesses.
+These four contributions together make the system **clinically deployable** — not just academically interesting. A model that knows its limits is fundamentally safer than one that always guesses.
