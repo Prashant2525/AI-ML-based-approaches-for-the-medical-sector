@@ -436,6 +436,13 @@ SmolVLM2 & 79.34 & 78.40 & 77.29 & 75.55 & 74.09 & 72.47 \\
 
 Both models exhibit a monotonically increasing selective F1 as coverage decreases, confirming that the uncertainty scores successfully rank samples by prediction quality. At 50\% coverage, SmolVLM2 achieves 79.34\% selective F1---a substantial 6.87 percentage point improvement over its overall F1 of 72.47\%. This demonstrates that, in a clinical workflow where a human expert handles the most uncertain cases, the effective accuracy of the AI system can be significantly enhanced.
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.48\textwidth]{images/instructblip_safety.png}
+\includegraphics[width=0.48\textwidth]{images/smolvlm2_safety.png}
+\caption{Safety and abstention plots for InstructBLIP (left) and SmolVLM2 (right), including Risk-Coverage curves, Selective F1 curves, and ECE Reliability Diagrams. SmolVLM2 demonstrates superior calibration (lower ECE), while InstructBLIP exhibits better uncertainty ranking (steeper Risk-Coverage curve and higher AUROC).}\label{fig:safety_plots}
+\end{figure}
+
 \subsection{Performance by Complexity Level}
 
 Table~\ref{tab:complexity} presents the fine-tuned performance stratified by question complexity level on the full 4,998-sample test set. The Kvasir-VQA-x1 dataset stratifies questions into three complexity levels: Level~1 (single atomic question), Level~2 (two merged questions), and Level~3 (three or more merged questions requiring multi-step clinical reasoning).
@@ -580,9 +587,26 @@ The selective coverage analysis (Table~\ref{tab:selective_coverage}) further rev
 
 Our uncertainty-aware abstention approach is complementary to, rather than a replacement for, post-hoc hallucination detection methods such as VASE~\cite{yu2025vase} and MediHallDetector~\cite{chen2025medihalldetector}. These approaches detect hallucinations \textit{after} generation, whereas our framework operates \textit{during} generation, providing a proactive safety mechanism. The qualitative analysis in Table~\ref{tab:qualitative} illustrates both the strengths and limitations of this proactive approach: while Case~(B) shows successful preemptive abstention on an incorrect answer, Case~(C) reveals that confident hallucinations (where all MC passes agree on the same incorrect answer) remain a failure mode that post-hoc detection could address. A combined system---proactive uncertainty-gated abstention complemented by post-hoc hallucination verification on the answered subset---represents a promising direction for comprehensive clinical safety.
 
-\subsection{Comparison with Base Paper Models}
+\subsection{Comparison with State-of-the-Art}
 
-It is instructive to compare our results with the models evaluated in the Kvasir-VQA-x1 benchmark paper~\cite{gautam2025kvasirx1}. The base paper fine-tuned MedGemma (4B, medical-domain architecture) and Qwen2.5-VL (7B, large generalist architecture), achieving mean accuracies of 87\% and 90\% respectively using their LLM-based adjudicator metric. Our models are both smaller (2.2B and 3B) and achieve comparable n-gram and semantic similarity scores, though direct comparison is complicated by the differing evaluation protocols (the base paper uses an LLM adjudicator while we use standard NLP metrics). Crucially, our work adds a dimension that is entirely absent from the base paper's evaluation: uncertainty-aware safety metrics. This positions our contribution as complementary to---rather than competitive with---the base paper's goals.
+It is instructive to compare our results with the state-of-the-art models evaluated in the Kvasir-VQA-x1 benchmark paper~\cite{gautam2025kvasirx1}. Table~\ref{tab:sota_comparison} presents this comparison against MedGemma-4B (medical-domain architecture) and Qwen2.5-VL-7B (large generalist architecture).
+
+\begin{table}[t]
+\caption{Comparison with Kvasir-VQA-x1 base paper models. Safety metrics (AUROC, ECE) were not computed (N/A) in prior work. Our models achieve comparable NLP metrics while introducing rigorous uncertainty quantification.}\label{tab:sota_comparison}
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcccccc}
+\toprule
+\textbf{Model} & \textbf{Params} & \textbf{ROUGE-L} & \textbf{BLEU-4} & \textbf{BERTScore} & \textbf{AUROC} & \textbf{ECE} \\
+\midrule
+MedGemma~\cite{gautam2025kvasirx1} & 4B & 64.8\% & 42.8\% & 94.8\% & N/A & N/A \\
+Qwen2.5-VL~\cite{gautam2025kvasirx1} & 7B & 69.0\% & 47.8\% & 95.4\% & N/A & N/A \\
+\midrule
+InstructBLIP (Ours) & 3B & 67.7\% & 40.3\% & 92.7\% & \textbf{0.770} & 0.688 \\
+SmolVLM2 (Ours) & 2.2B & \textbf{70.6\%} & 44.0\% & 93.3\% & 0.688 & \textbf{0.079} \\
+\botrule
+\end{tabular*}
+\end{table}
+
+Despite being significantly smaller (2.2B and 3B parameters) than the base models (4B and 7B), our fine-tuned models achieve highly competitive standard NLP metrics. Most notably, SmolVLM2 outperforms MedGemma on ROUGE-L (70.6\% vs.\ 64.8\%) and BLEU-4 (44.0\% vs.\ 42.8\%), and is competitive with the much larger Qwen2.5-VL model. Crucially, our work adds a dimension that is entirely absent from the base paper's evaluation: uncertainty-aware safety metrics (AUROC, ECE). This positions our contribution as a necessary safety-oriented complement to existing MedVQA benchmarks.
 
 \subsection{Novelty and Contribution Relative to Prior Work}
 
