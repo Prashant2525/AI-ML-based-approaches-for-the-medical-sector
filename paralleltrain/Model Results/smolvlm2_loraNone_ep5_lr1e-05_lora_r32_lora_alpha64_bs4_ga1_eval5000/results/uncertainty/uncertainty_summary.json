@@ -1,0 +1,47 @@
+{
+  "model": "SmolVLM2 (2.2B)",
+  "model_key": "smolvlm2",
+  "method": "LoRA + uncertainty abstention",
+  "checkpoint": "smolvlm2_loraNone_ep5_lr1e-05_lora_r32_lora_alpha64_bs4_ga1_eval5000",
+  "mc_dropout_passes": 5,
+  "target_coverage": 0.8,
+  "eval_samples": 999,
+  "elapsed_min": 139.4,
+  "vqa_metrics": {
+    "accuracy": 15.42,
+    "word_f1": 72.47,
+    "bleu_1": 67.9,
+    "bleu_2": 57.78,
+    "bleu_3": 49.54,
+    "bleu_4": 42.4,
+    "rouge_1": 72.52,
+    "rouge_2": 54.0,
+    "rouge_l": 69.51,
+    "meteor": 67.83,
+    "bertscore": 93.1,
+    "chrf_pp": 64.8,
+    "bleurt": 0.763
+  },
+  "safety_metrics": {
+    "auroc": 0.6883,
+    "auc_risk": 0.2018,
+    "ece": 0.0787,
+    "risk_coverage_auc": 20.2
+  },
+  "abstention": {
+    "threshold": 0.123,
+    "coverage": 0.8038,
+    "selective_f1": 75.45,
+    "overall_f1": 72.47,
+    "n_answered": 803,
+    "n_abstained": 196
+  },
+  "selective_accuracy": {
+    "50pct": 79.34,
+    "60pct": 78.4,
+    "70pct": 77.29,
+    "80pct": 75.55,
+    "90pct": 74.09,
+    "100pct": 72.47
+  }
+}

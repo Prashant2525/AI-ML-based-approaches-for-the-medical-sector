@@ -1,0 +1,537 @@
+%Version 3.1 December 2024
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                                                                  %%
+%% Please do not use \input{...} to include other tex files.        %%
+%% Submit your LaTeX manuscript as one .tex document.                %%
+%%                                                                  %%
+%% All additional figures and files should be attached               %%
+%% separately and not embedded in the \TeX\ document itself.        %%
+%%                                                                  %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\documentclass[pdflatex,sn-mathphys-num]{sn-jnl}
+
+%%%% Standard Packages
+\usepackage{graphicx}%
+\usepackage{multirow}%
+\usepackage{amsmath,amssymb,amsfonts}%
+\usepackage{amsthm}%
+\usepackage{mathrsfs}%
+\usepackage[title]{appendix}%
+\usepackage{xcolor}%
+\usepackage{textcomp}%
+\usepackage{manyfoot}%
+\usepackage{booktabs}%
+\usepackage{algorithm}%
+\usepackage{algorithmicx}%
+\usepackage{algpseudocode}%
+\usepackage{listings}%
+\usepackage{url}%
+\usepackage{hyperref}%
+
+\raggedbottom
+
+\begin{document}
+
+\title[Uncertainty-Aware Medical VQA]{Uncertainty-Aware Evaluation of Fine-Tuned Vision-Language Models for Trustworthy Medical Visual Question Answering in Gastrointestinal Endoscopy}
+
+%%=== Author information -- PLACEHOLDER: replace with your actual names ===%%
+\author*[1]{\fnm{Prashant} \sur{Dhimal}}\email{prashant\_dhimal@srmap.edu.in}
+\author[1]{\fnm{Sunit} \sur{Soni}}\email{sunit\_soni@srmap.edu.in}
+\author[1]{\fnm{Jayash} \sur{Shrestha}}\email{jayash\_shrestha@srmap.edu.in}
+\author[1]{\fnm{M Krishna} \sur{Siva Prasad}}\email{krishnasivaprasad.m@srmap.edu.in}
+
+\affil*[1]{\orgdiv{Department of Computer Science and Engineering}, \orgname{SRM University-AP}, \orgaddress{\city{Amaravati}, \state{Andhra Pradesh}, \country{India}}}
+
+\abstract{
+Deploying Vision-Language Models (VLMs) in clinical decision support demands not only high accuracy but also reliable self-awareness of prediction confidence. While existing Medical Visual Question Answering (MedVQA) benchmarks have advanced model performance through larger datasets and more complex questions, they do not address a fundamental safety requirement: the ability of a model to recognize when it is likely to be wrong and abstain from answering. In this work, we propose an uncertainty-aware evaluation framework for fine-tuned VLMs applied to gastrointestinal endoscopy VQA on the recent Kvasir-VQA-x1 benchmark. We fine-tune two architecturally distinct models---InstructBLIP (Flan-T5-XL, 3B encoder-decoder) and SmolVLM2 (2.2B causal decoder-only)---using Low-Rank Adaptation (LoRA), and evaluate them through a novel multi-signal uncertainty pipeline that fuses token-level entropy, Monte Carlo Dropout disagreement, and sequence-level confidence into a single composite uncertainty score. We then calibrate an abstention threshold that maximizes a selective F1 metric under a clinician-defined coverage constraint. Fine-tuning yields dramatic improvements: SmolVLM2 achieves a ROUGE-L of 70.6\% (up from 26.6\% zero-shot) and a BERTScore F1 of 93.3\% (up from 80.9\%), while InstructBLIP reaches a ROUGE-L of 67.7\% (up from 11.7\%) and a BERTScore F1 of 92.7\% (up from 67.8\%). Our uncertainty-aware selective prediction framework improves the effective F1 from 72.47\% to 75.45\% for SmolVLM2 and from 68.75\% to 73.25\% for InstructBLIP by abstaining on approximately 20\% of samples, while maintaining AUROC values of 0.69 and 0.77 respectively. These results demonstrate that pairing parameter-efficient fine-tuning with principled uncertainty estimation yields VLMs that are both accurate and safety-conscious, a critical step toward trustworthy clinical deployment.
+}
+
+\keywords{Medical VQA \and Vision-Language Models \and Uncertainty Estimation \and Selective Prediction \and Gastrointestinal Endoscopy \and LoRA Fine-Tuning}
+
+\maketitle
+
+%% ============================================================
+%%                      INTRODUCTION
+%% ============================================================
+\section{Introduction}\label{sec:intro}
+
+Medical Visual Question Answering (MedVQA) has emerged as a compelling paradigm for evaluating the clinical reasoning capabilities of multimodal AI systems~\cite{lin2023medvqa,hasan2018overview}. By requiring a model to jointly interpret a medical image and respond to a natural-language clinical question, MedVQA serves as a proxy for the kind of integrative reasoning that clinicians perform daily. In the domain of gastrointestinal (GI) endoscopy, where real-time interpretation of complex visual scenes can directly influence patient management, the stakes for AI-assisted decision support are particularly high~\cite{borgli2020hyperkvasir,ali2019deep}.
+
+Recent advances in Vision-Language Models (VLMs) have demonstrated remarkable zero-shot capabilities across diverse visual question-answering benchmarks~\cite{dai2023instructblip,allal2025smolvlm}. However, deploying these models in high-stakes clinical environments exposes two critical, interrelated gaps. First, while general-purpose VLMs possess broad world knowledge, their performance on specialized medical tasks---particularly those requiring nuanced clinical reasoning---is often insufficient without domain-specific adaptation~\cite{li2023llava_med,gautam2025kvasirx1}. The recent Kvasir-VQA-x1 dataset~\cite{gautam2025kvasirx1} addresses this gap by providing 159,549 complexity-stratified question-answer pairs for GI endoscopy, enabling rigorous evaluation of VLM reasoning at multiple levels of clinical difficulty. Second, and more critically for patient safety, even well-performing models can silently produce confident but incorrect answers---a phenomenon that standard evaluation pipelines are not designed to detect or mitigate.
+
+This second gap---the absence of trustworthiness mechanisms---represents the primary focus of our work. In a clinical setting, a model that achieves 70\% accuracy is operationally indistinguishable from a model that achieves 85\% accuracy on a subset of cases it is confident about, while deferring the remaining uncertain cases to a human expert. The latter is dramatically safer. This insight motivates the field of \textit{selective prediction}~\cite{geifman2017selective,el2010foundations}, where a model is permitted to abstain from answering when its uncertainty exceeds a calibrated threshold.
+
+Despite the importance of uncertainty estimation in medical AI, existing MedVQA evaluation frameworks focus almost exclusively on answer quality metrics (BLEU, ROUGE, BERTScore, BLEURT) and do not incorporate any mechanism for assessing or exploiting model uncertainty~\cite{gautam2025kvasirx1,lin2023medvqa}. This leaves a critical blind spot: we can measure how often a model is right, but not whether a model \textit{knows} when it is wrong.
+
+In this paper, we bridge this gap by proposing an \textbf{uncertainty-aware evaluation framework} for fine-tuned VLMs applied to medical VQA. Our contributions are:
+
+\begin{enumerate}
+    \item \textbf{Parameter-efficient fine-tuning of architecturally diverse VLMs.} We fine-tune two fundamentally different VLMs---InstructBLIP~\cite{dai2023instructblip} (an encoder-decoder architecture) and SmolVLM2~\cite{allal2025smolvlm} (a causal decoder-only architecture)---on the Kvasir-VQA-x1 benchmark using LoRA~\cite{hu2022lora}, demonstrating substantial improvements across all standard metrics while using fewer than 2\% of trainable parameters.
+
+    \item \textbf{A multi-signal uncertainty estimation pipeline.} We introduce a composite uncertainty score that fuses three complementary signals: (a)~token-level predictive entropy from greedy decoding, (b)~semantic disagreement from Monte Carlo (MC) Dropout~\cite{gal2016dropout} across multiple forward passes, and (c)~sequence-level generation confidence. This fusion captures uncertainty at different granularities, from individual token choices to overall answer coherence.
+
+    \item \textbf{A selective prediction framework with safety metrics.} We formulate a threshold-tuning procedure that maximizes selective F1 under a clinician-specified coverage constraint, and evaluate the resulting system using established safety metrics including AUROC, Risk-Coverage AUC, and Expected Calibration Error (ECE)~\cite{naeini2015ece,geifman2019selectivenet}.
+
+    \item \textbf{Comprehensive empirical analysis.} We provide an extensive empirical study comparing zero-shot, fine-tuned, and uncertainty-aware configurations across 12 evaluation metrics and 999 stratified test samples, demonstrating that our framework produces VLMs that are both more accurate and more trustworthy.
+\end{enumerate}
+
+%% ============================================================
+%%                      RELATED WORK
+%% ============================================================
+\section{Related Work}\label{sec:related}
+
+\subsection{Medical Visual Question Answering}
+
+Medical VQA sits at the intersection of computer vision, natural language processing, and clinical medicine~\cite{hasan2018overview,lin2023medvqa}. Early approaches treated MedVQA as a classification task over a fixed answer vocabulary~\cite{abacha2019vqarad}, but the shift toward generative models---enabled by large language models and vision-language architectures---has opened the door to open-ended, clinically nuanced responses~\cite{li2023llava_med,dai2023instructblip}.
+
+Benchmark datasets have evolved in parallel. VQA-RAD~\cite{abacha2019vqarad} and SLAKE~\cite{liu2021slake} provided early foundations but were limited in scale. PathVQA~\cite{he2020pathvqa} and PMC-VQA~\cite{zhang2023pmcvqa} expanded coverage but focused on radiology and pathology. For gastrointestinal endoscopy, Kvasir-VQA~\cite{gautam2023kvasirvqa} introduced 58,849 QA pairs over 6,500 images from HyperKvasir~\cite{borgli2020hyperkvasir}. The recent Kvasir-VQA-x1~\cite{gautam2025kvasirx1} dramatically expands this to 159,549 pairs with complexity-stratified questions designed to test multi-step clinical reasoning, making it uniquely suited for evaluating advanced VLM capabilities.
+
+\subsection{Vision-Language Model Architectures}
+
+Modern VLMs broadly fall into two architectural paradigms. \textit{Encoder-decoder} models such as InstructBLIP~\cite{dai2023instructblip} use a Q-Former bridge module that extracts fixed-length visual queries from a frozen image encoder (e.g., EVA-CLIP ViT-G) and feeds them, alongside text tokens, to a language decoder (e.g., Flan-T5~\cite{chung2024scaling}). This architecture separates visual feature extraction from language generation. \textit{Causal decoder-only} models such as SmolVLM2~\cite{allal2025smolvlm} take a more unified approach, projecting visual features directly into the token embedding space and processing the interleaved image-text sequence autoregressively. Comparing these two paradigms on the same task provides insight into how architectural choices influence both performance and uncertainty characteristics.
+
+\subsection{Parameter-Efficient Fine-Tuning}
+
+Full fine-tuning of large VLMs is computationally prohibitive and risks catastrophic forgetting. Low-Rank Adaptation (LoRA)~\cite{hu2022lora} addresses this by injecting trainable low-rank matrices into frozen transformer layers, typically targeting attention projections (Q, K, V, O). This approach reduces trainable parameters by orders of magnitude while preserving pre-trained representations. LoRA has been successfully applied to medical VLMs~\cite{gautam2025kvasirx1,moor2023med_flamingo}, including on Kvasir-VQA-x1 where the base paper fine-tuned MedGemma and Qwen2.5-VL with LoRA. Our work extends this approach to InstructBLIP and SmolVLM2, two models not evaluated in the original benchmark paper.
+
+\subsection{Uncertainty Estimation in Deep Learning}
+
+Uncertainty estimation for deep neural networks has a rich literature. Bayesian neural networks provide principled uncertainty through posterior inference, but are computationally expensive~\cite{blundell2015weight}. MC Dropout~\cite{gal2016dropout} offers a practical approximation by interpreting dropout at inference time as variational inference, enabling uncertainty estimation through the disagreement among multiple stochastic forward passes. For autoregressive language models, predictive entropy---computed from the softmax distribution over the vocabulary at each generation step---provides a complementary, token-level uncertainty signal~\cite{kadavath2022language,kuhn2023semantic}.
+
+In the medical domain, uncertainty estimation has been applied to classification~\cite{leibig2017retinal} and segmentation~\cite{jungo2019brain_seg}, but its integration into generative MedVQA remains largely unexplored. Notably, the Kvasir-VQA-x1 benchmark paper~\cite{gautam2025kvasirx1} explicitly identifies the development of uncertainty quantification and calibration as a key future direction. Our work directly addresses this open challenge.
+
+\subsection{Selective Prediction and Abstention}
+
+Selective prediction~\cite{el2010foundations,geifman2017selective} formalizes the trade-off between coverage (the fraction of inputs on which a model provides an answer) and accuracy (the quality of answers on the covered subset). The key insight is that a well-calibrated selector can identify inputs on which the model is likely to err, enabling abstention that improves the effective accuracy of the deployed system. Geifman and El-Yaniv~\cite{geifman2019selectivenet} extended this to deep networks through SelectiveNet, while recent work has explored selective prediction for large language models~\cite{varshney2023stitch}. To the best of our knowledge, our work is the first to apply a formal selective prediction framework---with calibrated uncertainty thresholds and coverage constraints---to generative medical VQA.
+
+%% ============================================================
+%%                      METHODOLOGY
+%% ============================================================
+\section{Methodology}\label{sec:method}
+
+Our framework consists of three stages: (1)~parameter-efficient fine-tuning of VLMs using LoRA, (2)~multi-signal uncertainty estimation during inference, and (3)~calibrated abstention with safety-metric evaluation. Figure~\ref{fig:pipeline} provides an overview.
+
+\begin{figure}[t]
+\centering
+% Placeholder: replace with actual pipeline diagram
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{2cm}\textbf{[Pipeline Diagram]}\\ Fine-tune VLM $\rightarrow$ Entropy + MC Dropout + Confidence $\rightarrow$ Fused Uncertainty $\rightarrow$ Threshold $\tau$ $\rightarrow$ Answer / Abstain\vspace{2cm}}}
+\caption{Overview of the proposed uncertainty-aware evaluation framework. A fine-tuned VLM generates candidate answers, which are assessed through three uncertainty signals that are fused into a composite score. An optimized threshold $\tau$ determines whether to present the answer or abstain.}\label{fig:pipeline}
+\end{figure}
+
+\subsection{Model Selection and Architecture}
+
+We select two VLMs that represent fundamentally different architectural paradigms, enabling us to study how architecture influences both VQA performance and uncertainty characteristics.
+
+\textbf{InstructBLIP (Flan-T5-XL)}~\cite{dai2023instructblip} is an encoder-decoder model comprising a frozen EVA-CLIP ViT-G/14 image encoder, a Q-Former bridge network with 32 learnable query tokens, and a Flan-T5-XL language model ($\sim$3B parameters). The Q-Former acts as an information bottleneck, distilling visual information into a fixed number of query embeddings through cross-attention with image features.
+
+\textbf{SmolVLM2 (2.2B)}~\cite{allal2025smolvlm} is a compact, causal decoder-only VLM that projects image patch embeddings directly into the language model's token space. Unlike InstructBLIP's bottleneck approach, SmolVLM2 allows the language model to attend directly to all visual tokens, providing richer but potentially noisier visual conditioning. Its smaller size (2.2B parameters) makes it particularly relevant for resource-constrained clinical deployment scenarios.
+
+\subsection{Parameter-Efficient Fine-Tuning with LoRA}\label{subsec:lora}
+
+Both models are adapted to the Kvasir-VQA-x1 dataset using LoRA~\cite{hu2022lora}. For a pre-trained weight matrix $\mathbf{W}_0 \in \mathbb{R}^{d \times k}$, LoRA parameterizes the update as:
+\begin{equation}
+    \mathbf{W} = \mathbf{W}_0 + \frac{\alpha}{r} \mathbf{B}\mathbf{A}
+\end{equation}
+where $\mathbf{B} \in \mathbb{R}^{d \times r}$, $\mathbf{A} \in \mathbb{R}^{r \times k}$, $r \ll \min(d, k)$ is the rank, and $\alpha$ is a scaling factor. The vision encoder is kept frozen in both models, with LoRA applied exclusively to the language model's attention projections. Table~\ref{tab:training_config} summarizes the training configuration.
+
+\begin{table}[t]
+\caption{Training configuration for both models. All models are trained on 143,594 samples from Kvasir-VQA-x1 with identical LoRA hyperparameters but model-specific architectural targets.}\label{tab:training_config}
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcc}
+\toprule
+\textbf{Hyperparameter} & \textbf{InstructBLIP} & \textbf{SmolVLM2} \\
+\midrule
+Base model & Flan-T5-XL (3B) & SmolVLM2-2.2B-Instruct \\
+Architecture type & Encoder-decoder & Causal decoder-only \\
+LoRA rank ($r$) & 32 & 32 \\
+LoRA alpha ($\alpha$) & 64 & 64 \\
+LoRA dropout & 0.1 & 0.1 \\
+Target modules & q, k, v, o & q\_proj, k\_proj, v\_proj, o\_proj \\
+Learning rate & $1 \times 10^{-5}$ & $1 \times 10^{-5}$ \\
+Epochs & 5 & 5 \\
+Batch size (per GPU) & 4 & 4 \\
+GPUs (DDP) & 6 & 5 \\
+Effective batch size & 24 & 20 \\
+Best validation loss & 0.424 & 0.194 \\
+Quantization & 4-bit NF4 & 4-bit NF4 \\
+\botrule
+\end{tabular*}
+\end{table}
+
+During fine-tuning, we employ 4-bit NF4 quantization~\cite{dettmers2024qlora} for memory efficiency and Distributed Data Parallel (DDP) training across multiple NVIDIA V100 32GB GPUs. The instruction prompt used during training is: \textit{``You are a medical vision-language assistant; given an endoscopic image and a clinical question that may ask about one or more findings, provide a concise, clinically accurate response addressing all parts of the question in natural-sounding medical language.''}
+
+\subsection{Multi-Signal Uncertainty Estimation}\label{subsec:uncertainty}
+
+After fine-tuning, we estimate uncertainty through three complementary signals that capture different aspects of model confidence. Our key insight is that no single uncertainty measure is sufficient for generative VQA: token-level entropy captures local vocabulary ambiguity, MC Dropout captures epistemic uncertainty through model parameter sensitivity, and sequence-level confidence captures the model's overall commitment to its generated answer.
+
+\subsubsection{Token-Level Predictive Entropy}
+
+For a generated sequence $\mathbf{y} = (y_1, y_2, \ldots, y_T)$, we compute the predictive entropy at each decoding step $t$ from the softmax distribution $p(y|y_{<t}, \mathbf{x})$ over the vocabulary $\mathcal{V}$:
+\begin{equation}
+    H_t = -\sum_{v \in \mathcal{V}} p(v|y_{<t}, \mathbf{x}) \log p(v|y_{<t}, \mathbf{x})
+\end{equation}
+The sequence-level entropy is then computed as the mean over all generated tokens:
+\begin{equation}
+    \bar{H} = \frac{1}{T} \sum_{t=1}^{T} H_t
+\end{equation}
+High entropy indicates that the model is distributing probability mass across many vocabulary items, signaling ambiguity in the token-level prediction.
+
+\subsubsection{Monte Carlo Dropout Disagreement}
+
+MC Dropout~\cite{gal2016dropout} estimates epistemic uncertainty by performing $K$ stochastic forward passes with dropout enabled during inference. For each pass $k$, we obtain a generated answer $\hat{y}^{(k)}$. We then quantify disagreement through pairwise Word-F1 similarity:
+\begin{equation}
+    U_{\text{MC}} = 1 - \frac{1}{\binom{K}{2}} \sum_{i<j} \text{F1}(\hat{y}^{(i)}, \hat{y}^{(j)})
+\end{equation}
+where $\text{F1}(\cdot, \cdot)$ computes stemmed word-level F1 between two generated answers. This measures semantic-level disagreement: if different dropout masks produce substantially different answers, the model's prediction is sensitive to its parameter configuration, indicating epistemic uncertainty. The final MC prediction is selected via majority voting over normalized answers from all $K$ passes.
+
+\subsubsection{Sequence-Level Generation Confidence}
+
+We compute the generation confidence as the geometric mean of token-level probabilities along the greedy decoding path:
+\begin{equation}
+    C = \exp\left(\frac{1}{T} \sum_{t=1}^{T} \log p(y_t|y_{<t}, \mathbf{x})\right)
+\end{equation}
+This captures the model's overall confidence in its chosen sequence. A low confidence score indicates that, while the model selected the most probable token at each step, the probabilities were generally low, suggesting overall uncertainty.
+
+\subsubsection{Composite Uncertainty Score}
+
+The three signals are fused into a single composite uncertainty score using a weighted combination:
+\begin{equation}\label{eq:composite}
+    U_{\text{combined}} = w_1 \cdot \hat{H} + w_2 \cdot U_{\text{MC}} + w_3 \cdot (1 - C)
+\end{equation}
+where $\hat{H} = \min(\bar{H}/10, 1)$ is the normalized entropy, and $w_1 = 0.4$, $w_2 = 0.3$, $w_3 = 0.3$. The weights reflect our prior that token-level entropy (which is computed from the full vocabulary distribution) provides the richest uncertainty signal, while MC Dropout and confidence provide complementary perspectives. The entropy normalization factor of 10 was chosen empirically to map the raw entropy values (which can range from 0 to $\log|\mathcal{V}|$) to the unit interval.
+
+\subsection{Selective Prediction Framework}\label{subsec:abstention}
+
+Given the composite uncertainty scores $\{U_i\}_{i=1}^{N}$ and corresponding Word-F1 scores $\{F_i\}_{i=1}^{N}$ on a calibration set, we optimize an abstention threshold $\tau$ that maximizes the selective F1 subject to a coverage constraint:
+\begin{equation}
+    \tau^* = \arg\max_{\tau} \; \frac{1}{|\mathcal{A}_\tau|} \sum_{i \in \mathcal{A}_\tau} F_i \quad \text{s.t.} \quad \frac{|\mathcal{A}_\tau|}{N} \geq \gamma
+\end{equation}
+where $\mathcal{A}_\tau = \{i : U_i \leq \tau\}$ is the set of answered samples and $\gamma$ is the target coverage (set to 80\% in our experiments, meaning the model must answer at least 80\% of queries). This formulation reflects a practical clinical constraint: while abstaining on uncertain cases improves answer quality, the model must still provide utility on a majority of inputs.
+
+\subsection{Safety and Calibration Metrics}\label{subsec:safety_metrics}
+
+We assess the quality of our uncertainty estimates through four established metrics:
+
+\textbf{AUROC (Area Under the Receiver Operating Characteristic curve)} measures the discriminative ability of the uncertainty score in distinguishing correct predictions (Word-F1 $\geq$ 0.5) from incorrect ones. We compute it via concordance:
+\begin{equation}
+    \text{AUROC} = \frac{\sum_{i \in \mathcal{I}} \sum_{j \in \mathcal{C}} \mathbb{1}[U_i > U_j]}{|\mathcal{I}| \cdot |\mathcal{C}|}
+\end{equation}
+where $\mathcal{I}$ and $\mathcal{C}$ denote the sets of incorrect and correct predictions, respectively.
+
+\textbf{Risk-Coverage AUC} captures the area under the risk (1 $-$ selective accuracy) vs.\ coverage curve, providing a single number that summarizes the quality of selective prediction across all possible coverage levels.
+
+\textbf{Expected Calibration Error (ECE)}~\cite{naeini2015ece} measures the alignment between model confidence and actual accuracy by partitioning predictions into confidence bins:
+\begin{equation}
+    \text{ECE} = \sum_{m=1}^{M} \frac{|B_m|}{N} \left| \text{acc}(B_m) - \text{conf}(B_m) \right|
+\end{equation}
+
+\textbf{Selective F1 at Coverage $c$} reports the mean Word-F1 on the top-$c$ fraction of samples ranked by ascending uncertainty, providing a granular view of the accuracy-coverage trade-off.
+
+%% ============================================================
+%%                EXPERIMENTAL SETUP
+%% ============================================================
+\section{Experimental Setup}\label{sec:experiments}
+
+\subsection{Dataset}
+
+We use the Kvasir-VQA-x1 dataset~\cite{gautam2025kvasirx1}, which contains 159,549 question-answer pairs linked to 6,500 gastrointestinal endoscopy images from HyperKvasir~\cite{borgli2020hyperkvasir} and Kvasir-Instrument~\cite{jha2021kvasir_instrument}. Each QA pair is annotated with a complexity score (Level 1--3) indicating the number of atomic questions merged to form the complex question. We use the official train/test split: 143,594 samples for training and 15,955 for testing. For standard evaluation, we use 4,998 test samples; for the computationally intensive uncertainty evaluation (which requires $1 + K$ forward passes per sample), we use a stratified subset of 999 samples balanced across complexity levels.
+
+\subsection{Evaluation Metrics}
+
+We employ a comprehensive suite of 12 evaluation metrics spanning four categories:
+
+\textit{N-gram overlap:} BLEU-1 through BLEU-4~\cite{papineni2002bleu} with smoothing, ROUGE-1, ROUGE-2, ROUGE-L~\cite{lin2004rouge}, METEOR~\cite{banerjee2005meteor}, and chrF++~\cite{popovic2015chrf}.
+
+\textit{Semantic similarity:} BERTScore F1~\cite{zhang2020bertscore} using DistilBERT embeddings, and BLEURT~\cite{sellam2020bleurt} using the BLEURT-20 checkpoint for learned quality assessment.
+
+\textit{Lexical:} Exact match accuracy and Word-F1 (stemmed word-level F1).
+
+\textit{Safety:} AUROC, Risk-Coverage AUC, ECE, and Selective F1 at multiple coverage levels.
+
+\subsection{Implementation Details}
+
+All experiments are conducted on NVIDIA V100 32GB GPUs. Training uses PyTorch with Distributed Data Parallel (DDP) and 4-bit NF4 quantization via bitsandbytes~\cite{dettmers2024qlora}. LoRA adapters are applied via the PEFT library~\cite{peft2023}. For uncertainty evaluation, we use $K = 5$ MC Dropout passes with a target coverage $\gamma = 0.80$. The LoRA dropout rate of 0.1 serves dual purpose: regularization during training and the stochastic mechanism for MC Dropout during inference~\cite{gal2016dropout}. BERTScore is computed using \texttt{distilbert-base-uncased}, and BLEURT uses the BLEURT-20 checkpoint~\cite{sellam2020bleurt}. All random seeds are fixed to 42 for reproducibility.
+
+%% ============================================================
+%%                   RESULTS
+%% ============================================================
+\section{Results}\label{sec:results}
+
+\subsection{Impact of Fine-Tuning on VQA Performance}
+
+Table~\ref{tab:main_results} presents the comprehensive comparison between zero-shot and fine-tuned configurations for both models across all evaluation metrics on 4,998 test samples.
+
+\begin{table}[t]
+\caption{VQA performance comparison: zero-shot vs.\ fine-tuned. All values in percentages except BLEURT (0--1 scale). $N = 4{,}998$ test samples. $\uparrow$ indicates higher is better.}\label{tab:main_results}
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcccc}
+\toprule
+& \multicolumn{2}{c}{\textbf{InstructBLIP}} & \multicolumn{2}{c}{\textbf{SmolVLM2}} \\
+\cmidrule{2-3}\cmidrule{4-5}
+\textbf{Metric} $\uparrow$ & \textbf{Zero-Shot} & \textbf{Fine-Tuned} & \textbf{Zero-Shot} & \textbf{Fine-Tuned} \\
+\midrule
+Exact Match & 0.0 & 15.4 & 0.0 & 17.3 \\
+Word F1 & 12.5 & 70.9 & 33.8 & 73.3 \\
+BLEU-1 & 3.1 & 66.3 & 25.0 & 68.9 \\
+BLEU-2 & 1.6 & 55.6 & 13.4 & 58.9 \\
+BLEU-3 & 0.9 & 47.1 & 8.0 & 50.9 \\
+BLEU-4 & 0.7 & 40.3 & 5.2 & 44.0 \\
+ROUGE-1 & 12.1 & 70.8 & 31.3 & 73.5 \\
+ROUGE-2 & 1.8 & 51.5 & 10.4 & 55.3 \\
+ROUGE-L & 11.7 & 67.7 & 26.6 & 70.6 \\
+METEOR & 5.4 & 66.0 & 28.5 & 68.7 \\
+chrF++ & 5.6 & 63.2 & 30.3 & 65.9 \\
+BERTScore F1 & 67.8 & 92.7 & 80.9 & 93.3 \\
+BLEURT & 0.081 & 0.749 & 0.526 & 0.768 \\
+\botrule
+\end{tabular*}
+\end{table}
+
+The results reveal three important findings. First, fine-tuning produces transformative improvements for both architectures, with relative gains exceeding 400\% for InstructBLIP on most lexical metrics (e.g., Word-F1 from 12.5\% to 70.9\%). Second, SmolVLM2 consistently outperforms InstructBLIP across all metrics after fine-tuning, despite having fewer parameters (2.2B vs.\ 3B), suggesting that the decoder-only architecture's direct visual-token attention provides an advantage for generative medical VQA. Third, the semantic metrics (BERTScore, BLEURT) show that even zero-shot SmolVLM2 captures meaningful clinical semantics (BERTScore 80.9\%), but fine-tuning still yields substantial improvements (to 93.3\%), indicating that domain adaptation captures clinical specificity beyond general semantic understanding.
+
+\subsection{Uncertainty Estimation and Selective Prediction}
+
+Table~\ref{tab:uncertainty_results} presents the uncertainty-aware evaluation results on the 999-sample stratified test set with $K = 5$ MC Dropout passes.
+
+\begin{table}[t]
+\caption{Uncertainty-aware evaluation results on 999 stratified test samples with $K = 5$ MC Dropout passes. The abstention threshold $\tau$ is tuned to maximize selective F1 at $\geq$80\% coverage.}\label{tab:uncertainty_results}
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcc}
+\toprule
+\textbf{Metric} & \textbf{InstructBLIP} & \textbf{SmolVLM2} \\
+\midrule
+\multicolumn{3}{l}{\textit{Standard VQA Metrics (on full 999 samples)}} \\
+\quad Word F1 (\%) & 68.75 & 72.47 \\
+\quad BLEU-4 (\%) & 37.01 & 42.40 \\
+\quad ROUGE-L (\%) & 65.30 & 69.51 \\
+\quad METEOR (\%) & 63.05 & 67.83 \\
+\quad BERTScore F1 (\%) & 92.1 & 93.1 \\
+\quad BLEURT & 0.736 & 0.763 \\
+\midrule
+\multicolumn{3}{l}{\textit{Safety Metrics}} \\
+\quad AUROC & 0.7696 & 0.6883 \\
+\quad Risk-Coverage AUC & 0.2216 & 0.2018 \\
+\quad ECE & 0.6875 & 0.0787 \\
+\midrule
+\multicolumn{3}{l}{\textit{Abstention Results}} \\
+\quad Threshold $\tau$ & 0.4332 & 0.1230 \\
+\quad Coverage (\%) & 80.6 & 80.4 \\
+\quad Samples answered & 805 & 803 \\
+\quad Samples abstained & 194 & 196 \\
+\quad Overall F1 (\%) & 68.75 & 72.47 \\
+\quad \textbf{Selective F1 (\%)} & \textbf{73.25} & \textbf{75.45} \\
+\quad F1 gain from abstention & +4.50 & +2.98 \\
+\botrule
+\end{tabular*}
+\end{table}
+
+Several noteworthy patterns emerge. InstructBLIP achieves a higher AUROC (0.770 vs.\ 0.688), indicating that its uncertainty scores are more discriminative in separating correct from incorrect predictions. This may be attributable to the Q-Former bottleneck: by compressing visual information into a fixed number of queries, InstructBLIP creates a more structured internal representation where uncertainty signals are more consistent. However, InstructBLIP also exhibits a substantially higher ECE (0.688 vs.\ 0.079), suggesting that its raw confidence values are poorly calibrated---the model is overconfident in its predictions relative to its actual accuracy.
+
+SmolVLM2, by contrast, demonstrates exemplary calibration (ECE = 0.079), meaning its confidence scores are well-aligned with its actual accuracy. This makes SmolVLM2 more suitable for clinical deployment where well-calibrated confidence is essential for risk stratification.
+
+\subsection{Selective Accuracy at Multiple Coverage Levels}
+
+Table~\ref{tab:selective_coverage} shows how selective F1 varies as the coverage constraint changes, providing a complete picture of the accuracy-coverage trade-off.
+
+\begin{table}[t]
+\caption{Selective F1 (\%) at different coverage levels. Lower coverage allows the model to abstain on more samples, improving accuracy on answered samples.}\label{tab:selective_coverage}
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcccccc}
+\toprule
+\textbf{Coverage} & \textbf{50\%} & \textbf{60\%} & \textbf{70\%} & \textbf{80\%} & \textbf{90\%} & \textbf{100\%} \\
+\midrule
+InstructBLIP & 77.52 & 76.27 & 75.28 & 73.38 & 71.34 & 68.75 \\
+SmolVLM2 & 79.34 & 78.40 & 77.29 & 75.55 & 74.09 & 72.47 \\
+\botrule
+\end{tabular*}
+\end{table}
+
+Both models exhibit a monotonically increasing selective F1 as coverage decreases, confirming that the uncertainty scores successfully rank samples by prediction quality. At 50\% coverage, SmolVLM2 achieves 79.34\% selective F1---a substantial 6.87 percentage point improvement over its overall F1 of 72.47\%. This demonstrates that, in a clinical workflow where a human expert handles the most uncertain cases, the effective accuracy of the AI system can be significantly enhanced.
+
+%% ============================================================
+%%                   DISCUSSION
+%% ============================================================
+\section{Discussion}\label{sec:discussion}
+
+\subsection{The Transformative Impact of Domain-Specific Fine-Tuning}
+
+Our results strongly corroborate the findings of Gautam et al.~\cite{gautam2025kvasirx1}: domain-specific fine-tuning is the single most important factor in achieving clinical competency for medical VQA. The magnitude of improvement is striking---InstructBLIP's BLEURT score increases by a factor of 9.2$\times$ (from 0.081 to 0.749), while its BLEU-4 jumps from 0.7\% to 40.3\%. This underscores that general-purpose pre-training, while providing essential foundational knowledge and visual grounding, is categorically insufficient for the specialized vocabulary, reasoning patterns, and clinical precision demanded by gastrointestinal endoscopy.
+
+Interestingly, fine-tuning acts as a substantial equalizer between models of different provenance. Despite their architectural differences, InstructBLIP and SmolVLM2 converge to remarkably similar performance after fine-tuning (e.g., BERTScore: 92.7\% vs.\ 93.3\%), suggesting that the quality and specificity of the training data---not model architecture alone---is the dominant factor at this performance level. This aligns with the observation from the base paper that MedGemma (4B) and Qwen2.5-VL (7B) also converged after fine-tuning on the same dataset.
+
+\subsection{Architectural Implications for Uncertainty}
+
+Despite similar VQA performance, the two architectures exhibit markedly different uncertainty characteristics. InstructBLIP's higher AUROC (0.770) but dramatically worse ECE (0.688) suggests that its Q-Former bottleneck produces uncertainty signals that are \textit{relatively} well-ordered (good ranking) but \textit{absolutely} miscalibrated (poor confidence-accuracy alignment). This is a clinically important distinction: a model with good ranking but poor calibration can still be used for selective prediction (since only the ordering matters for threshold-based abstention), but cannot be used for direct risk communication (where a ``90\% confident'' prediction should be correct 90\% of the time).
+
+SmolVLM2's excellent calibration (ECE = 0.079) makes it more suitable for applications where clinicians need to interpret the model's confidence as a probability, such as in triage or priority ranking of cases for expert review.
+
+\subsection{The Value of Uncertainty-Aware Abstention}
+
+The practical value of our framework is best understood through the lens of clinical workflow integration. Consider a deployment scenario where the model assists an endoscopist by providing preliminary answers to clinical queries during a procedure. Without abstention, the model provides answers for all queries with an average F1 of 72.47\% (SmolVLM2). With abstention at 80\% coverage, the model flags 19.6\% of queries as uncertain and defers them to the clinician, while achieving 75.45\% F1 on the remaining 80.4\% of queries. This represents a meaningful improvement in the reliability of the AI-assisted answers, reducing the cognitive burden on clinicians who would otherwise need to verify every response.
+
+The selective coverage analysis (Table~\ref{tab:selective_coverage}) further reveals that if a clinical deployment can tolerate 50\% coverage (i.e., the model answers only the cases it is most confident about, deferring the rest), the effective F1 reaches 79.34\%---approaching a level that could meaningfully augment clinical decision-making.
+
+\subsection{Comparison with Base Paper Models}
+
+It is instructive to compare our results with the models evaluated in the Kvasir-VQA-x1 benchmark paper~\cite{gautam2025kvasirx1}. The base paper fine-tuned MedGemma (4B, medical-domain architecture) and Qwen2.5-VL (7B, large generalist architecture), achieving mean accuracies of 87\% and 90\% respectively using their LLM-based adjudicator metric. Our models are both smaller (2.2B and 3B) and achieve comparable n-gram and semantic similarity scores, though direct comparison is complicated by the differing evaluation protocols (the base paper uses an LLM adjudicator while we use standard NLP metrics). Crucially, our work adds a dimension that is entirely absent from the base paper's evaluation: uncertainty-aware safety metrics. This positions our contribution as complementary to---rather than competitive with---the base paper's goals.
+
+\subsection{Novelty and Contribution Relative to Prior Work}
+
+The base paper~\cite{gautam2025kvasirx1} makes a significant contribution through dataset construction and VLM benchmarking but explicitly acknowledges several limitations that our work addresses:
+
+\begin{enumerate}
+    \item \textit{No uncertainty quantification.} The base paper evaluates only answer quality, not answer reliability. Our multi-signal uncertainty framework directly fills this gap.
+    \item \textit{No abstention mechanism.} When a model produces a wrong answer, the base paper's framework has no mechanism to detect or mitigate this. Our selective prediction framework provides exactly this capability.
+    \item \textit{No calibration analysis.} The base paper's evaluation does not assess whether model confidence aligns with actual accuracy. Our ECE analysis reveals important calibration differences between architectures.
+    \item \textit{Limited architectural diversity.} The base paper evaluates MedGemma and Qwen2.5-VL---both large ($\geq$4B) models. Our evaluation of InstructBLIP and SmolVLM2 explores smaller, more deployment-friendly models and spans both encoder-decoder and decoder-only paradigms.
+\end{enumerate}
+
+%% ============================================================
+%%                   LIMITATIONS
+%% ============================================================
+\section{Limitations}\label{sec:limitations}
+
+Our work has several limitations that should be acknowledged. First, the uncertainty fusion weights in Equation~\ref{eq:composite} are hand-crafted rather than learned; future work could optimize these weights through validation set performance or Bayesian hyperparameter optimization. Second, our evaluation is confined to a single medical domain (GI endoscopy); the generalizability of our uncertainty framework to other medical specialties (radiology, pathology) remains an open question. Third, MC Dropout provides only an approximation to true Bayesian uncertainty, and its quality depends on the dropout rate and number of passes. With $K = 5$ passes, the computational overhead is approximately $6\times$ that of standard inference, which may be prohibitive for real-time applications. Fourth, our abstention threshold is tuned on the same test set used for evaluation; in a deployment scenario, a separate calibration set would be required. Fifth, the ECE values should be interpreted cautiously for InstructBLIP, as the high ECE (0.688) approaches the model's overall F1 (0.688), suggesting systematic overconfidence that may require post-hoc calibration (e.g., temperature scaling) before deployment.
+
+%% ============================================================
+%%                   CONCLUSION
+%% ============================================================
+\section{Conclusion}\label{sec:conclusion}
+
+We have presented an uncertainty-aware evaluation framework for fine-tuned Vision-Language Models applied to medical Visual Question Answering in gastrointestinal endoscopy. By fusing token-level entropy, Monte Carlo Dropout disagreement, and sequence-level confidence into a composite uncertainty score, and calibrating an abstention threshold under a coverage constraint, we demonstrate that VLMs can be made both more accurate and more trustworthy for clinical deployment.
+
+Our experiments on the Kvasir-VQA-x1 benchmark reveal that LoRA fine-tuning transforms both InstructBLIP and SmolVLM2 from clinically inadequate zero-shot models into strong medical VQA systems (BERTScore $>$ 92\%), and that our uncertainty-aware selective prediction further improves effective F1 from 72.47\% to 75.45\% (SmolVLM2) and from 68.75\% to 73.25\% (InstructBLIP) by abstaining on approximately 19\% of uncertain samples. The comparison between architectures reveals that SmolVLM2 offers superior accuracy with excellent calibration (ECE = 0.079), while InstructBLIP provides better uncertainty discrimination (AUROC = 0.770) despite poor calibration.
+
+These results establish that uncertainty estimation is not merely an academic exercise but a practical necessity for clinical AI systems. A model that knows when it does not know is categorically safer than one that always answers with equal confidence. We believe this work provides a concrete step toward the deployment of trustworthy multimodal AI in clinical settings, and we hope it encourages the MedVQA community to adopt uncertainty-aware evaluation as a standard component of model assessment.
+
+Future work should explore learned uncertainty fusion weights, ensemble-based uncertainty estimation, and the integration of uncertainty signals with human-in-the-loop clinical workflows. The extension of this framework to other medical imaging domains and the development of real-time uncertainty visualization for clinicians represent promising directions for translating these findings into clinical practice.
+
+\backmatter
+
+\bmhead{Acknowledgements}
+
+We acknowledge the use of the Kvasir-VQA-x1 dataset~\cite{gautam2025kvasirx1} and the computational resources provided by our institution's GPU cluster. We thank the authors of InstructBLIP, SmolVLM2, and the PEFT library for their open-source contributions.
+
+\section*{Declarations}
+
+\begin{itemize}
+\item \textbf{Funding:} Not applicable.
+\item \textbf{Conflict of interest:} The authors declare no competing interests.
+\item \textbf{Ethics approval:} Not applicable (study uses publicly available de-identified data).
+\item \textbf{Data availability:} The Kvasir-VQA-x1 dataset is publicly available at \url{https://huggingface.co/datasets/SimulaMet/Kvasir-VQA-x1}.
+\item \textbf{Code availability:} Code for the uncertainty evaluation framework will be made available upon publication.
+\end{itemize}
+
+%% ============================================================
+%%                   REFERENCES
+%% ============================================================
+\begin{thebibliography}{99}
+
+\bibitem{abacha2019vqarad}
+Abacha, A.B., Gayen, S., Lau, J.J., Rajaraman, S., Demner-Fushman, D.: A question-entailment approach to question answering. BMC Bioinformatics \textbf{20}(511), 1--14 (2019). \url{https://doi.org/10.1186/s12859-019-3119-4}
+
+\bibitem{ali2019deep}
+Ali, S., Zhou, F., Bailey, A., Braden, B., East, J., Lu, X., Rittscher, J.: A deep learning framework for quality assessment and restoration in video endoscopy. Med. Image Anal. \textbf{68}, 101900 (2021). \url{https://doi.org/10.1016/j.media.2020.101900}
+
+\bibitem{allal2025smolvlm}
+Allal, L.B., Lozhkov, A., Penedo, G., Wolf, T., von Werra, L.: SmolVLM2: Smol and Mighty. Hugging Face Blog (2025). \url{https://huggingface.co/HuggingFaceTB/SmolVLM2-2.2B-Instruct}
+
+\bibitem{banerjee2005meteor}
+Banerjee, S., Lavie, A.: METEOR: An automatic metric for MT evaluation with improved correlation with human judgments. In: Proc. ACL Workshop on Intrinsic and Extrinsic Evaluation Measures for Machine Translation and/or Summarization, pp.~65--72 (2005)
+
+\bibitem{blundell2015weight}
+Blundell, C., Cornebise, J., Kavukcuoglu, K., Wierstra, D.: Weight uncertainty in neural networks. In: Proc. ICML, pp.~1613--1622 (2015)
+
+\bibitem{borgli2020hyperkvasir}
+Borgli, H., Thambawita, V., Smedsrud, P.H., et al.: HyperKvasir, a comprehensive multi-class image and video dataset for gastrointestinal endoscopy. Sci. Data \textbf{7}(283), 1--14 (2020). \url{https://doi.org/10.1038/s41597-020-00622-y}
+
+\bibitem{chung2024scaling}
+Chung, H.W., Hou, L., Longpre, S., et al.: Scaling instruction-finetuned language models. J. Mach. Learn. Res. \textbf{25}(70), 1--53 (2024)
+
+\bibitem{dai2023instructblip}
+Dai, W., Li, J., Li, D., Tiong, A.M.H., Zhao, J., Wang, W., Li, B., Fung, P., Hoi, S.: InstructBLIP: Towards general-purpose vision-language models with instruction tuning. In: Advances in Neural Information Processing Systems, vol.~36 (2023)
+
+\bibitem{dettmers2024qlora}
+Dettmers, T., Pagnoni, A., Holtzman, A., Zettlemoyer, L.: QLoRA: Efficient finetuning of quantized LLMs. In: Advances in Neural Information Processing Systems, vol.~36 (2023)
+
+\bibitem{el2010foundations}
+El-Yaniv, R., Wiener, Y.: On the foundations of noise-free selective classification. J. Mach. Learn. Res. \textbf{11}, 1605--1641 (2010)
+
+\bibitem{gal2016dropout}
+Gal, Y., Ghahramani, Z.: Dropout as a Bayesian approximation: Representing model uncertainty in deep learning. In: Proc. ICML, pp.~1050--1059 (2016)
+
+\bibitem{gautam2023kvasirvqa}
+Gautam, S., Stor{\aa}s, A., Midoglu, C., Hicks, S., Thambawita, V., Halvorsen, P., Riegler, M.A.: Kvasir-VQA: A text-image pair GI tract dataset. In: Proc. Int. Workshop on Multimedia Content Analysis in Sports, pp.~19--23. ACM (2023). \url{https://doi.org/10.1145/3606038.3616172}
+
+\bibitem{gautam2025kvasirx1}
+Gautam, S., Riegler, M.A., Halvorsen, P.: Kvasir-VQA-x1: A multimodal dataset for medical reasoning and robust MedVQA in gastrointestinal endoscopy. arXiv preprint arXiv:2506.09958 (2025)
+
+\bibitem{geifman2017selective}
+Geifman, Y., El-Yaniv, R.: Selective classification for deep neural networks. In: Advances in Neural Information Processing Systems, vol.~30 (2017)
+
+\bibitem{geifman2019selectivenet}
+Geifman, Y., El-Yaniv, R.: SelectiveNet: A deep neural network with an integrated reject option. In: Proc. ICML, pp.~2151--2159 (2019)
+
+\bibitem{hasan2018overview}
+Hasan, S.A., Ling, Y., Farri, O., Liu, J., M{\"u}ller, H., Lungren, M.P.: Overview of ImageCLEF 2018 medical domain visual question answering task. In: CLEF Working Notes (2018)
+
+\bibitem{he2020pathvqa}
+He, X., Zhang, Y., Mou, L., Xing, E., Xie, P.: PathVQA: 30000+ questions for medical visual question answering. arXiv preprint arXiv:2003.10286 (2020)
+
+\bibitem{hu2022lora}
+Hu, E.J., Shen, Y., Wallis, P., Allen-Zhu, Z., Li, Y., Wang, S., Wang, L., Chen, W.: LoRA: Low-rank adaptation of large language models. In: Proc. ICLR (2022)
+
+\bibitem{jha2021kvasir_instrument}
+Jha, D., Ali, S., Tomar, N.K., et al.: Kvasir-Instrument: Diagnostic and therapeutic tool segmentation dataset in gastrointestinal endoscopy. In: Proc. MMM, pp.~218--229. Springer (2021). \url{https://doi.org/10.1007/978-3-030-67835-7\_19}
+
+\bibitem{jungo2019brain_seg}
+Jungo, A., Reyes, M.: Assessing reliability and challenges of uncertainty estimations for medical image segmentation. In: Proc. MICCAI, pp.~48--56. Springer (2019)
+
+\bibitem{kadavath2022language}
+Kadavath, S., Conerly, T., Askell, A., et al.: Language models (mostly) know what they know. arXiv preprint arXiv:2207.05221 (2022)
+
+\bibitem{kuhn2023semantic}
+Kuhn, L., Gal, Y., Farquhar, S.: Semantic uncertainty: Linguistic invariances for uncertainty estimation in natural language generation. In: Proc. ICLR (2023)
+
+\bibitem{leibig2017retinal}
+Leibig, C., Allken, V., Ayhan, M.S., Berens, P., Wahl, S.: Leveraging uncertainty information from deep neural networks for disease detection. Sci. Rep. \textbf{7}(17816) (2017). \url{https://doi.org/10.1038/s41598-017-17876-z}
+
+\bibitem{li2023llava_med}
+Li, C., Wong, C., Zhang, S., Usuyama, N., Liu, H., Yang, J., Naumann, T., Poon, H., Gao, J.: LLaVA-Med: Training a large language-and-vision assistant for biomedicine in one day. In: Advances in Neural Information Processing Systems, vol.~36 (2023)
+
+\bibitem{lin2004rouge}
+Lin, C.Y.: ROUGE: A package for automatic evaluation of summaries. In: Text Summarization Branches Out, pp.~74--81. ACL (2004)
+
+\bibitem{lin2023medvqa}
+Lin, X., Mei, L., Liu, Z., et al.: Medical visual question answering: A survey. Artif. Intell. Med. \textbf{143}, 102611 (2023). \url{https://doi.org/10.1016/j.artmed.2023.102611}
+
+\bibitem{liu2021slake}
+Liu, B., Zhan, L.M., Xu, L., et al.: SLAKE: A semantically-labeled knowledge-enhanced dataset for medical visual question answering. In: Proc. ISBI, pp.~1650--1654. IEEE (2021)
+
+\bibitem{moor2023med_flamingo}
+Moor, M., Huang, Q., Wu, S., et al.: Med-Flamingo: A multimodal medical few-shot learner. In: Proc. ML4H (2023)
+
+\bibitem{naeini2015ece}
+Naeini, M.P., Cooper, G., Hauskrecht, M.: Obtaining well calibrated probabilities using Bayesian binning. In: Proc. AAAI, pp.~2901--2907 (2015)
+
+\bibitem{papineni2002bleu}
+Papineni, K., Roukos, S., Ward, T., Zhu, W.J.: BLEU: A method for automatic evaluation of machine translation. In: Proc. ACL, pp.~311--318 (2002)
+
+\bibitem{peft2023}
+Mangrulkar, S., Gugger, S., Debut, L., Belkada, Y., Paul, S.: PEFT: State-of-the-art parameter-efficient fine-tuning methods. Hugging Face (2023). \url{https://github.com/huggingface/peft}
+
+\bibitem{popovic2015chrf}
+Popovi{\'c}, M.: chrF: Character n-gram F-score for automatic MT evaluation. In: Proc. WMT, pp.~392--395 (2015)
+
+\bibitem{sellam2020bleurt}
+Sellam, T., Das, D., Parikh, A.P.: BLEURT: Learning robust metrics for text generation. In: Proc. ACL, pp.~7881--7892 (2020)
+
+\bibitem{varshney2023stitch}
+Varshney, N., Yao, B., Baral, C.: A stitch in time saves nine: Detecting and mitigating hallucinations of LLMs by validating low-confidence generation. arXiv preprint arXiv:2307.03987 (2023)
+
+\bibitem{zhang2020bertscore}
+Zhang, T., Kishore, V., Wu, F., Weinberger, K.Q., Artzi, Y.: BERTScore: Evaluating text generation with BERT. In: Proc. ICLR (2020)
+
+\bibitem{zhang2023pmcvqa}
+Zhang, X., Wu, C., Zhao, Z., et al.: PMC-VQA: Visual instruction tuning for medical visual question answering. arXiv preprint arXiv:2305.10415 (2023)
+
+\end{thebibliography}
+
+\end{document}

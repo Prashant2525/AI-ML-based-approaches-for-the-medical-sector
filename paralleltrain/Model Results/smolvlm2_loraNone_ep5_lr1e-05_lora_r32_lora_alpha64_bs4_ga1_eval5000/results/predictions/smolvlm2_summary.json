@@ -1,0 +1,42 @@
+{
+  "zs": {
+    "model": "SmolVLM2 (2.2B) (Zero-Shot)",
+    "n": 4998,
+    "accuracy": 0.0,
+    "ece": 33.84,
+    "avg_word_f1": 33.8,
+    "avg_bleu_1": 25.0,
+    "avg_bleu_2": 13.4,
+    "avg_bleu_3": 8.0,
+    "avg_bleu_4": 5.2,
+    "avg_rouge_1": 31.3,
+    "avg_rouge_2": 10.4,
+    "avg_rouge_l": 26.6,
+    "avg_meteor": 28.5,
+    "auroc": 0.0,
+    "risk_coverage_auc": 100.0,
+    "chrf_pp": 30.3,
+    "bert_f1": 80.9,
+    "bleurt": 0.526
+  },
+  "ft": {
+    "model": "SmolVLM2 (2.2B) (Fine-Tuned)",
+    "n": 4998,
+    "accuracy": 17.3,
+    "ece": 55.6,
+    "avg_word_f1": 73.3,
+    "avg_bleu_1": 68.9,
+    "avg_bleu_2": 58.9,
+    "avg_bleu_3": 50.9,
+    "avg_bleu_4": 44.0,
+    "avg_rouge_1": 73.5,
+    "avg_rouge_2": 55.3,
+    "avg_rouge_l": 70.6,
+    "avg_meteor": 68.7,
+    "auroc": 99.8,
+    "risk_coverage_auc": 52.6,
+    "chrf_pp": 65.9,
+    "bert_f1": 93.3,
+    "bleurt": 0.768
+  }
+}

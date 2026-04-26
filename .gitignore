@@ -38,3 +38,5 @@ checkpoints/
 
 # zip files
 *.zip
+
+*.safetensors

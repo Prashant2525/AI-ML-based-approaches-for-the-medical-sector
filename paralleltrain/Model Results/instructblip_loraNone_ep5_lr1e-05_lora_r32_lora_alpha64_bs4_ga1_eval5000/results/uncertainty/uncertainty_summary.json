@@ -1,0 +1,47 @@
+{
+  "model": "InstructBLIP (Flan-T5-XL)",
+  "model_key": "instructblip",
+  "method": "LoRA + uncertainty abstention",
+  "checkpoint": "instructblip_loraNone_ep5_lr1e-05_lora_r32_lora_alpha64_bs4_ga1_eval5000",
+  "mc_dropout_passes": 5,
+  "target_coverage": 0.8,
+  "eval_samples": 999,
+  "elapsed_min": 272.5,
+  "vqa_metrics": {
+    "accuracy": 13.21,
+    "word_f1": 68.75,
+    "bleu_1": 63.75,
+    "bleu_2": 52.81,
+    "bleu_3": 43.99,
+    "bleu_4": 37.01,
+    "rouge_1": 68.62,
+    "rouge_2": 48.79,
+    "rouge_l": 65.3,
+    "meteor": 63.05,
+    "bertscore": 92.1,
+    "chrf_pp": 60.3,
+    "bleurt": 0.736
+  },
+  "safety_metrics": {
+    "auroc": 0.7696,
+    "auc_risk": 0.2216,
+    "ece": 0.6875,
+    "risk_coverage_auc": 22.2
+  },
+  "abstention": {
+    "threshold": 0.4332,
+    "coverage": 0.8058,
+    "selective_f1": 73.25,
+    "overall_f1": 68.75,
+    "n_answered": 805,
+    "n_abstained": 194
+  },
+  "selective_accuracy": {
+    "50pct": 77.52,
+    "60pct": 76.27,
+    "70pct": 75.28,
+    "80pct": 73.38,
+    "90pct": 71.34,
+    "100pct": 68.75
+  }
+}

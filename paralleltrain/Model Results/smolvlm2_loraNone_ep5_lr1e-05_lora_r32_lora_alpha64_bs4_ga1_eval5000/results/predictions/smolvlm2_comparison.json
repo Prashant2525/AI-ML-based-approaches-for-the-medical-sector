@@ -1,0 +1,110 @@
+{
+  "model": "SmolVLM2 (2.2B)",
+  "model_key": "smolvlm2",
+  "zero_shot": {
+    "model": "SmolVLM2 (2.2B) (Zero-Shot)",
+    "n": 4998,
+    "accuracy": 0.0,
+    "ece": 33.84,
+    "avg_word_f1": 33.8,
+    "avg_bleu_1": 25.0,
+    "avg_bleu_2": 13.4,
+    "avg_bleu_3": 8.0,
+    "avg_bleu_4": 5.2,
+    "avg_rouge_1": 31.3,
+    "avg_rouge_2": 10.4,
+    "avg_rouge_l": 26.6,
+    "avg_meteor": 28.5,
+    "auroc": 0.0,
+    "risk_coverage_auc": 100.0,
+    "avg_bertscore": 80.9,
+    "chrf_pp": 30.3,
+    "bert_f1": 80.9,
+    "bleurt": 0.526
+  },
+  "fine_tuned": {
+    "model": "SmolVLM2 (2.2B) (Fine-Tuned)",
+    "n": 4998,
+    "accuracy": 17.3,
+    "ece": 55.6,
+    "avg_word_f1": 73.3,
+    "avg_bleu_1": 68.9,
+    "avg_bleu_2": 58.9,
+    "avg_bleu_3": 50.9,
+    "avg_bleu_4": 44.0,
+    "avg_rouge_1": 73.5,
+    "avg_rouge_2": 55.3,
+    "avg_rouge_l": 70.6,
+    "avg_meteor": 68.7,
+    "auroc": 99.8,
+    "risk_coverage_auc": 52.6,
+    "avg_bertscore": 93.3,
+    "chrf_pp": 65.9,
+    "bert_f1": 93.3,
+    "bleurt": 0.768
+  },
+  "config": {
+    "lr": 1e-05,
+    "epochs_run": 5,
+    "lora_r": 32,
+    "lora_targets": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj"
+    ],
+    "train_samples": 143594,
+    "best_val_loss": 0.19383960723876953,
+    "batch_size": 4,
+    "grad_accum": 1,
+    "world_size": 5,
+    "effective_batch": 20
+  },
+  "uncertainty": {
+    "model": "SmolVLM2 (2.2B)",
+    "model_key": "smolvlm2",
+    "method": "LoRA + uncertainty abstention",
+    "checkpoint": "smolvlm2_loraNone_ep5_lr1e-05_lora_r32_lora_alpha64_bs4_ga1_eval5000",
+    "mc_dropout_passes": 5,
+    "target_coverage": 0.8,
+    "eval_samples": 999,
+    "elapsed_min": 139.4,
+    "vqa_metrics": {
+      "accuracy": 15.42,
+      "word_f1": 72.47,
+      "bleu_1": 67.9,
+      "bleu_2": 57.78,
+      "bleu_3": 49.54,
+      "bleu_4": 42.4,
+      "rouge_1": 72.52,
+      "rouge_2": 54.0,
+      "rouge_l": 69.51,
+      "meteor": 67.83,
+      "bertscore": 93.1,
+      "chrf_pp": 64.8,
+      "bleurt": 0.763
+    },
+    "safety_metrics": {
+      "auroc": 0.6883,
+      "auc_risk": 0.2018,
+      "ece": 0.0787,
+      "risk_coverage_auc": 20.2
+    },
+    "abstention": {
+      "threshold": 0.123,
+      "coverage": 0.8038,
+      "selective_f1": 75.45,
+      "overall_f1": 72.47,
+      "n_answered": 803,
+      "n_abstained": 196
+    },
+    "selective_accuracy": {
+      "50pct": 79.34,
+      "60pct": 78.4,
+      "70pct": 77.29,
+      "80pct": 75.55,
+      "90pct": 74.09,
+      "100pct": 72.47
+    }
+  }
+}
